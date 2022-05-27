@@ -4,7 +4,8 @@
 
 # julia -t 4 とか。
 using Images
-using GLMakie
+# using GLMakie
+using CairoMakie
 using StatsBase
 using CUDA
 # include("functions.jl")
@@ -165,15 +166,6 @@ function getErrorVec(vecMap, coefa, gridSize = 128, imgSize = 1024)
 end
 
 """
-`path` の画像をモノクロ画像として読み込み、画像配列を返します。
-
-画像は 0~1 の Float64 行列として扱われます。
-"""
-function loadholo(path)
-    out = Float32.(channelview(Gray.(load(path))))
-end
-
-"""
 画像配列 `img` を、変換係数 `coefa` により画像変換し、返します。
 """
 function getNewImage(img, coefa)
@@ -201,6 +193,17 @@ function getNewImage(img, coefa)
     end
     return out 
 end
+
+"""
+`path` の画像をモノクロ画像として読み込み、画像配列を返します。
+
+画像は 0~1 の Float64 行列として扱われます。
+"""
+function loadholo(path)
+    out = Float32.(channelview(Gray.(load(path))))
+end
+
+
 
 function CuGetVector!(vecArray::CuDeviceArray{Float32,3},corArray::CuDeviceArray{Float32,2},gridNum::Int64,corArrSize::Int64,intrSize::Int64)
     gridIdxx = (blockIdx().x-1)*blockDim().x + threadIdx().x
@@ -290,7 +293,7 @@ function getPIVMap_GPU(image1, image2, imgLen = 1024, gridSize = 128, intrSize =
     corArray = CuArray{Float32}(undef,((srchSize-intrSize+1)*(gridNum-1),(srchSize-intrSize+1)*(gridNum-1)))
     vecArray = CuArray{Float32}(undef,(gridNum-1,gridNum-1,2))
 
-    blockSize = 32
+    blockSize = 16
     threads1 = (blockSize,blockSize)
     blocks1 = (cld((srchSize-intrSize+1)*(gridNum-1),blockSize),cld((srchSize-intrSize+1),blockSize))
     blocks2 = (cld(gridNum-1,blockSize),cld(gridNum-1,blockSize))
@@ -300,6 +303,8 @@ function getPIVMap_GPU(image1, image2, imgLen = 1024, gridSize = 128, intrSize =
 
     for idx in 1:gridNum-1
         @cuda threads = threads1 blocks = blocks1 CuGetCrossCor!(corArray,d_img1,d_img2,idx,gridNum,srchSize,intrSize,gridSize)
+        synchronize()
+        # sleep(0.1)
     end
 
     # display(corArray)
@@ -324,6 +329,7 @@ function main()
     imgLen = size(img1)[1]
     n = 7
     vecArray = getPIVMap_GPU(img1,img2,imgLen);
+    # vecArray = getPIVMap_GPU(img1,img2,imgLen);
     # display(vecArray)
 
     f = Figure(resolution = (1600,500),figure_padding = 1)
@@ -342,9 +348,9 @@ function main()
     xs = [i*128 for i in 1:n]
     ys = [i*128 for i in 1:n]
     arrows!(arrowax, xs,ys, vecxObservable,vecyObservable, arrowsize=10, lengthscale=20, arrowcolor = strObservable, linecolor = strObservable)
-    display(f)
+    # display(f)
 
-    # # Makie.save("./figure1.pdf",f)
+    Makie.save("./figure1.pdf",f)
 
     coefa = fill(1.0,12)
     itr = 1
@@ -368,12 +374,13 @@ function main()
     # display(coefa)
     
     img3 = getNewImage(img2, coefa)
+    sleep(0.1)
     vecArray = getPIVMap_GPU(img1,img3,imgLen)
     vecxObservable[] = rotr90(vecArray[:,:,1])
     vecyObservable[] = -rotr90(vecArray[:,:,2])
     strObservable[] = vec(sqrt.(vecArray[:,:,1].^2 .+ vecArray[:,:,2].^2))
     imgObservable2[] = rotr90(img3)
-    # # Makie.save("./figure2.pdf",f)
+    Makie.save("./figure1.pdf",f)
 
     Images.save("./output.png",img3)
 end
