@@ -2,6 +2,7 @@ using CairoMakie
 using Spinnaker
 using Images
 using Gtk, Gtk.ShortNames
+using CUDA
 
 """
 2カメラの設定
@@ -186,6 +187,7 @@ function imgAcquisition(camList,state,stopbutton)
     arr1 = CameraImage(img1,Float32, normalize = true)
     arr2 = CameraImage(img2,Float32, normalize = true)
     vecArray = getPIVMap_GPU(arr1,arr2)
+    println("PIV ok")
 
     f = Figure(resolution = (1600,500),figure_padding = 1)
     arrowax = Makie.Axis(f[1,3], aspect = 1 , yreversed=false, backgroundcolor="white")
@@ -204,6 +206,7 @@ function imgAcquisition(camList,state,stopbutton)
     ys = [i*128 for i in 1:n]
     arrows!(arrowax, xs,ys, vecxObservable,vecyObservable, arrowsize=10, lengthscale=20, arrowcolor = strObservable, linecolor = strObservable)
 
+    println("Hi.")
     Makie.save("./loopfig.pdf",f)
     
     signal_connect(x -> state = "stop", stopbutton, "clicked")
@@ -221,6 +224,7 @@ function imgAcquisition(camList,state,stopbutton)
         vecyObservable[] = -rotr90(vecArray[:,:,2])
         strObservable[] = vec(sqrt.(vecArray[:,:,1].^2 .+ vecArray[:,:,2].^2))
         sleep(0.01)
+        Makie.save("./loopfig.pdf",f)
         # i += 1
         # sleep(0.01)
     end
