@@ -7,7 +7,7 @@ using CUDA
 """
 2カメラの設定
 """
-function configSetup(camList, exposure = 200.0, gain = 0.0)
+function configSetup(camList, exposure = 200.0, gain = 0.0, imgLen = 1024)
     cam1 = camList[0]
     cam2 = camList[1]
     
@@ -29,6 +29,11 @@ function configSetup(camList, exposure = 200.0, gain = 0.0)
     @assert pixelformat(cam1) == "Mono16"
     pixelformat!(cam2, "Mono16")
     @assert pixelformat(cam2) == "Mono16"
+
+    imagedims!(cam1,(imgLen,imgLen))
+    imagedims!(cam2,(imgLen,imgLen))
+    offsetdims!(cam1,(512,256))
+    offsetdims!(cam2,(512,256))
 
     # Spinnaker.set!(Spinnaker.SpinBooleanNode(cam2,"ReverseX"),true)
 
@@ -84,6 +89,13 @@ function CuGetVector!(vecArray::CuDeviceArray{Float32,3},corArray::CuDeviceArray
             end
         end
 
+        if x0 == 1 || x0 == corArrSize*(gridNum-1) || y0 == 1 || y0 == corArrSize*(gridNum-1)
+            vecArray[gridIdxy,gridIdxx,1] = Float32(x0) - Float32(intrSize)/2.0 -1.0  - (gridIdxx-1)*corArrSize
+            vecArray[gridIdxy,gridIdxx,2] = Float32(y0) - Float32(intrSize)/2.0 -1.0  - (gridIdxy-1)*corArrSize
+
+            return nothing
+        end
+
         valy1x0::Float32 = corArray[y0+1,x0]
         valy0x0::Float32 = corArray[y0,x0]
         valyInv1x0::Float32 = corArray[y0-1,x0]
@@ -95,7 +107,7 @@ function CuGetVector!(vecArray::CuDeviceArray{Float32,3},corArray::CuDeviceArray
         end
 
         vecArray[gridIdxy, gridIdxx,1] = Float32(x0) - (valy0x1 - valy0xInv1)/(valy0x1-2.0*valy0x0+valy0xInv1)/2.0 - Float32(intrSize)/2.0 -1.0  - (gridIdxx-1)*corArrSize
-        vecArray[gridIdxy, gridIdxx,2] = Float32(y0) - (valy1x0 - valyInv1x0)/(valy1x0-2.0*valy0x0+valyInv1x0)/2.0 - intrSize/2.0 -1.0  - (gridIdxy-1)*corArrSize
+        vecArray[gridIdxy, gridIdxx,2] = Float32(y0) - (valy1x0 - valyInv1x0)/(valy1x0-2.0*valy0x0+valyInv1x0)/2.0 - Float32(intrSize)/2.0 -1.0  - (gridIdxy-1)*corArrSize
     end
     return nothing
 end
@@ -184,15 +196,18 @@ function imgAcquisition(camList,state,stopbutton)
     trigger!(cam1)
     img1 = getimage(cam1)
     img2 = getimage(cam2)
+    stop!(cam1)
+    stop!(cam2)
     arr1 = CameraImage(img1,Float32, normalize = true)
     arr2 = CameraImage(img2,Float32, normalize = true)
+    display(size(arr1))
     vecArray = getPIVMap_GPU(arr1,arr2)
     println("PIV ok")
 
     f = Figure(resolution = (1600,500),figure_padding = 1)
-    arrowax = Makie.Axis(f[1,3], aspect = 1 , yreversed=false, backgroundcolor="white")
     imageax1 = Makie.Axis(f[1, 1], aspect = DataAspect(), yreversed = false, title = "Camera 1")
     imageax2 = Makie.Axis(f[1, 2], aspect = DataAspect(), yreversed = false, title = "Camera 2")
+    arrowax = Makie.Axis(f[1,3], aspect = 1 , yreversed=false, backgroundcolor="white")
     imgObservable1 = Observable(rotr90(RGB.(arr1,arr1,arr1)))
     imgObservable2 = Observable(rotr90(RGB.(arr2,arr2,arr2)))
     image!(imageax1,imgObservable1)
@@ -202,8 +217,8 @@ function imgAcquisition(camList,state,stopbutton)
     vecyObservable = Observable(-rotr90(vecArray[:,:,2]))
     strObservable = Observable(vec(sqrt.(vecArray[:,:,1].^2 .+ vecArray[:,:,2].^2)))
 
-    xs = [i*128 for i in 1:n]
-    ys = [i*128 for i in 1:n]
+    xs = [i*128 for i in 1:7]
+    ys = [i*128 for i in 1:7]
     arrows!(arrowax, xs,ys, vecxObservable,vecyObservable, arrowsize=10, lengthscale=20, arrowcolor = strObservable, linecolor = strObservable)
 
     println("Hi.")
@@ -212,9 +227,14 @@ function imgAcquisition(camList,state,stopbutton)
     signal_connect(x -> state = "stop", stopbutton, "clicked")
     while state == "running"
         # while state == "running"
+        display(rand())
+        start!(cam1)
+        start!(cam2)
         trigger!(cam1)
         getimage!(cam1,img1)
         getimage!(cam2,img2)
+        stop!(cam1)
+        stop!(cam2)
         arr1 = CameraImage(img1,Float32, normalize = true)
         arr2 = CameraImage(img2,Float32, normalize = true)
         vecArray = getPIVMap_GPU(arr1,arr2)
@@ -228,8 +248,8 @@ function imgAcquisition(camList,state,stopbutton)
         # i += 1
         # sleep(0.01)
     end
-    stop!(cam1)
-    stop!(cam2)
+    # stop!(cam1)
+    # stop!(cam2)
     Spinnaker._release!(cam1)
     Spinnaker._release!(cam2)
     # close(f)
