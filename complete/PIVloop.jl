@@ -4,10 +4,16 @@ using Images
 using Gtk, Gtk.ShortNames
 using CUDA
 
+include("imposedHoloFunc.jl")
+
+function loadholo(path)
+    out = Float32.(channelview(Gray.(load(path))))
+end
+
 """
 2カメラの設定
 """
-function configSetup(camList, exposure = 200.0, gain = 0.0, imgLen = 1024)
+function configSetup(camList, imgLen = 1024, exposure = 400.0, expratio = 0.5, gain = 0.0)
     cam1 = camList[0]
     cam2 = camList[1]
     
@@ -32,17 +38,19 @@ function configSetup(camList, exposure = 200.0, gain = 0.0, imgLen = 1024)
 
     imagedims!(cam1,(imgLen,imgLen))
     imagedims!(cam2,(imgLen,imgLen))
-    offsetdims!(cam1,(512,256))
-    offsetdims!(cam2,(512,256))
+    offsetdims!(cam1,(div(2048-imgLen,2),div(1536-imgLen,2)))
+    offsetdims!(cam2,(660,610))
+    # offsetdims!(cam2,(div(2048-imgLen,2),div(1536-imgLen,2)))
 
-    # Spinnaker.set!(Spinnaker.SpinBooleanNode(cam2,"ReverseX"),true)
+    Spinnaker.set!(Spinnaker.SpinBooleanNode(cam2,"ReverseY"),true)
+    Spinnaker.set!(Spinnaker.SpinBooleanNode(cam2,"ReverseX"),false)
 
     Spinnaker.set!(Spinnaker.SpinEnumNode(cam1,"ExposureAuto"),"Off")
     Spinnaker.set!(Spinnaker.SpinEnumNode(cam2,"ExposureAuto"),"Off")
     Spinnaker.set!(Spinnaker.SpinEnumNode(cam1,"ExposureMode"),"Timed")
     Spinnaker.set!(Spinnaker.SpinEnumNode(cam1,"ExposureMode"),"Timed")
     exposure!(cam1, exposure)
-    exposure!(cam2, exposure)
+    exposure!(cam2, exposure*expratio)
 
     Spinnaker.set!(Spinnaker.SpinEnumNode(cam1,"GainAuto"),"Off")
     Spinnaker.set!(Spinnaker.SpinEnumNode(cam2,"GainAuto"),"Off")
@@ -89,27 +97,28 @@ function CuGetVector!(vecArray::CuDeviceArray{Float32,3},corArray::CuDeviceArray
             end
         end
 
-        if x0 == 1 || x0 == corArrSize*(gridNum-1) || y0 == 1 || y0 == corArrSize*(gridNum-1)
+        # if x0 == 1 || x0 == corArrSize*(gridNum-1) || y0 == 1 || y0 == corArrSize*(gridNum-1)
+        if true
             vecArray[gridIdxy,gridIdxx,1] = Float32(x0) - Float32(intrSize)/2.0 -1.0  - (gridIdxx-1)*corArrSize
             vecArray[gridIdxy,gridIdxx,2] = Float32(y0) - Float32(intrSize)/2.0 -1.0  - (gridIdxy-1)*corArrSize
 
             return nothing
+        else
+            valy1x0::Float32 = corArray[y0+1,x0]
+            valy0x0::Float32 = corArray[y0,x0]
+            valyInv1x0::Float32 = corArray[y0-1,x0]
+            valy0x1::Float32 = corArray[y0,x0+1]
+            valy0xInv1::Float32 = corArray[y0,x0-1]
+
+            if (valy1x0-2.0*valy0x0+valyInv1x0 == 0.0) || (valy0x1-2.0*valy0x0+valy0xInv1 == 0.0)
+                valy0x0 += 0.00001
+            end
+
+            vecArray[gridIdxy, gridIdxx,1] = Float32(x0) - (valy0x1 - valy0xInv1)/(valy0x1-2.0*valy0x0+valy0xInv1)/2.0 - Float32(intrSize)/2.0 -1.0  - (gridIdxx-1)*corArrSize
+            vecArray[gridIdxy, gridIdxx,2] = Float32(y0) - (valy1x0 - valyInv1x0)/(valy1x0-2.0*valy0x0+valyInv1x0)/2.0 - Float32(intrSize)/2.0 -1.0  - (gridIdxy-1)*corArrSize
+            return nothing
         end
-
-        valy1x0::Float32 = corArray[y0+1,x0]
-        valy0x0::Float32 = corArray[y0,x0]
-        valyInv1x0::Float32 = corArray[y0-1,x0]
-        valy0x1::Float32 = corArray[y0,x0+1]
-        valy0xInv1::Float32 = corArray[y0,x0-1]
-
-        if (valy1x0-2.0*valy0x0+valyInv1x0 == 0.0) || (valy0x1-2.0*valy0x0+valy0xInv1 == 0.0)
-            valy0x0 += 0.00001
-        end
-
-        vecArray[gridIdxy, gridIdxx,1] = Float32(x0) - (valy0x1 - valy0xInv1)/(valy0x1-2.0*valy0x0+valy0xInv1)/2.0 - Float32(intrSize)/2.0 -1.0  - (gridIdxx-1)*corArrSize
-        vecArray[gridIdxy, gridIdxx,2] = Float32(y0) - (valy1x0 - valyInv1x0)/(valy1x0-2.0*valy0x0+valyInv1x0)/2.0 - Float32(intrSize)/2.0 -1.0  - (gridIdxy-1)*corArrSize
     end
-    return nothing
 end
 
 function CuGetCrossCor!(corArray::CuDeviceArray{Float32,2},img1::CuDeviceArray{Float32,2},img2::CuDeviceArray{Float32,2},gridIdxy::Int64,gridNum::Int64,srchSize::Int64,intrSize::Int64,gridSize::Int64)
@@ -187,7 +196,7 @@ function getPIVMap_GPU(image1, image2, imgLen = 1024, gridSize = 128, intrSize =
     return output
 end
 
-function imgAcquisition(camList,state,stopbutton)
+function imgAcquisition(camList,state,stopbutton,imgLen,gridSize,intrSize, srchSize)
     cam1 = camList[0]
     cam2 = camList[1]
 
@@ -201,7 +210,7 @@ function imgAcquisition(camList,state,stopbutton)
     arr1 = CameraImage(img1,Float32, normalize = true)
     arr2 = CameraImage(img2,Float32, normalize = true)
     display(size(arr1))
-    vecArray = getPIVMap_GPU(arr1,arr2)
+    vecArray = getPIVMap_GPU(arr1,arr2,imgLen,gridSize,intrSize,srchSize)
     println("PIV ok")
 
     f = Figure(resolution = (1600,500),figure_padding = 1)
@@ -217,9 +226,11 @@ function imgAcquisition(camList,state,stopbutton)
     vecyObservable = Observable(-rotr90(vecArray[:,:,2]))
     strObservable = Observable(vec(sqrt.(vecArray[:,:,1].^2 .+ vecArray[:,:,2].^2)))
 
-    xs = [i*128 for i in 1:7]
-    ys = [i*128 for i in 1:7]
+    n = div(imgLen,gridSize) -1
+    xs = [i*gridSize for i in 1:n]
+    ys = [i*gridSize for i in 1:n]
     arrows!(arrowax, xs,ys, vecxObservable,vecyObservable, arrowsize=10, lengthscale=20, arrowcolor = strObservable, linecolor = strObservable)
+    Makie.limits!(arrowax,0,gridSize*(n+1),0,gridSize*(n+1))
 
     println("Hi.")
     Makie.save("./loopfig.pdf",f)
@@ -237,9 +248,13 @@ function imgAcquisition(camList,state,stopbutton)
         stop!(cam2)
         arr1 = CameraImage(img1,Float32, normalize = true)
         arr2 = CameraImage(img2,Float32, normalize = true)
-        vecArray = getPIVMap_GPU(arr1,arr2)
-        imgObservable1[] = rotr90(RGB.(arr1,arr1,arr1))
-        imgObservable2[] = rotr90(RGB.(arr2,arr2,arr2))
+        # imp1 = arr1
+        imp1 = getImposed(arr1,imgLen)
+        # imp2 = arr2
+        imp2 = getImposed(arr2,imgLen)
+        vecArray = getPIVMap_GPU(imp1,imp2,imgLen,gridSize,intrSize,srchSize)
+        imgObservable1[] = rotr90(RGB.(imp1,imp1,imp1))
+        imgObservable2[] = rotr90(RGB.(imp2,imp2,imp2))
         vecxObservable[] = rotr90(vecArray[:,:,1])
         vecyObservable[] = -rotr90(vecArray[:,:,2])
         strObservable[] = vec(sqrt.(vecArray[:,:,1].^2 .+ vecArray[:,:,2].^2))
@@ -256,13 +271,17 @@ function imgAcquisition(camList,state,stopbutton)
 end
 
 function main()
+    imglen = 512
+    gridsize = div(imglen,8)
+    intrsize = div(imglen,8)
+    srchsize = div(imglen,4)
+
     # get camera list
     if !(@isdefined camList)
         camList = CameraList()
         display(camList)
-        configSetup(camList)
+        configSetup(camList,imglen)
     end
-    configSetup(camList)
 
     win = Window("Camera Controller")
     v = GtkBox(:v)
@@ -282,9 +301,7 @@ function main()
     push!(v, b3)
     push!(v,l4)
 
-    showall(win)
-
-    imgAcquisTask(camList, state, stopbutton) = @task begin; imgAcquisition(camList,state,stopbutton); end
+    imgAcquisTask(camList, state, stopbutton) = @task begin; imgAcquisition(camList,state,stopbutton,imglen,gridsize,intrsize,srchsize); end
 
     function start(camList, stopbutton)
         state = "running"
@@ -294,6 +311,8 @@ function main()
 
     signal_connect(x -> start(camList, b2), b1, "clicked")
     signal_connect(x -> exit(), b3, "clicked")
+
+    showall(win)
 
     if !isinteractive()
         c = Condition()
