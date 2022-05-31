@@ -223,9 +223,8 @@ function CuUpdateImposed(datLen, input,imposed)
     return nothing
 end
 
-function getImposed(img, sqr,transF,transInt,imgLen=1024,wavLen=0.532,dx=3.45/0.5,zF=100.0*1000,dz=50.0)
+function getImposed(img,transF,transInt,imgLen=1024,blockSize=16)
     datLen = imgLen*2
-    blockSize = 16
     threads = (blockSize,blockSize)
     blocks = (cld(datLen,blockSize),cld(datLen,blockSize))
 

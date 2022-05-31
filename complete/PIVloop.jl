@@ -6,7 +6,7 @@ using CUDA
 
 include("imposedHoloFunc.jl")
 
-function imgAcquisition(camList,state,stopbutton,imgLen,gridSize,intrSize, srchSize)
+function imgAcquisition(camList,state,stopbutton,imgLen,gridSize,intrSize, srchSize,zF=100.0*1000,dz=50.0,wavLen=0.532,dx=3.45/0.5)
     # Gabor Reconstruction Prepareing
     datLen = imgLen*2
     blockSize = 16
@@ -36,7 +36,7 @@ function imgAcquisition(camList,state,stopbutton,imgLen,gridSize,intrSize, srchS
     arr2 = CameraImage(img2,Float32, normalize = true)
     display(size(arr1))
     vecArray = getPIVMap_GPU(arr1,arr2,imgLen,gridSize,intrSize,srchSize)
-    println("PIV ok")
+    println("PIV OK")
 
     f = Figure(resolution = (1600,500),figure_padding = 1)
     imageax1 = Makie.Axis(f[1, 1], aspect = DataAspect(), yreversed = false, title = "Camera 1")
@@ -74,9 +74,9 @@ function imgAcquisition(camList,state,stopbutton,imgLen,gridSize,intrSize, srchS
         arr1 = CameraImage(img1,Float32, normalize = true)
         arr2 = CameraImage(img2,Float32, normalize = true)
         # imp1 = arr1
-        imp1 = getImposed(arr1,sqr,transF,transInt,imgLen)
+        imp1 = getImposed(arr1,transF,transInt,imgLen,blockSize)
         # imp2 = arr2
-        imp2 = getImposed(arr2,sqr,transF,transInt,imgLen)
+        imp2 = getImposed(arr2,transF,transInt,imgLen,blockSize)
         vecArray = getPIVMap_GPU(imp1,imp2,imgLen,gridSize,intrSize,srchSize)
         imgObservable1[] = rotr90(RGB.(imp1,imp1,imp1))
         imgObservable2[] = rotr90(RGB.(imp2,imp2,imp2))
@@ -88,6 +88,7 @@ function imgAcquisition(camList,state,stopbutton,imgLen,gridSize,intrSize, srchS
     end
     Spinnaker._release!(cam1)
     Spinnaker._release!(cam2)
+    println("Stop Clicked!")
 end
 
 function main()
