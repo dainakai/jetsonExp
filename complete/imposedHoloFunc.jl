@@ -234,36 +234,38 @@ function ifft2d!(plan,array::CuArray{ComplexF32,2},out::CuArray{Float32,2})
 end
 
 function getImposed(img::Array{Float32,2},transF::CuArray{ComplexF32,2},transInt::CuArray{ComplexF32,2},imgLen::Int64=512,blockSize::Int64=16)
-    datLen = imgLen*2
+    datLen = imgLen*1
     threads = (blockSize,blockSize)
     blocks = (cld(datLen,blockSize),cld(datLen,blockSize))
 
-    d_img = CuArray{Float32}(undef,(datLen,datLen))
+    # d_img = CuArray{Float32}(undef,(datLen,datLen))
     # plan = CUFFT.plan_fft(d_img)
     # iplan = CUFFT.plan_ifft(d_img)
     # d_img .= 0.5
-    tmpdata = cu(img)
-    d_img .= mean(tmpdata)
-    d_img[div(imgLen,2)+1:div(imgLen,2)+imgLen,div(imgLen,2)+1:div(imgLen,2)+imgLen] .= tmpdata
+    # tmpdata = cu(img)
+    # d_img .= mean(tmpdata)
+    # d_img[div(imgLen,2)+1:div(imgLen,2)+imgLen,div(imgLen,2)+1:div(imgLen,2)+imgLen] .= tmpdata
+    d_img = cu(img)
     holo = CuArray{ComplexF32}(undef,(datLen,datLen))
     impImg = CUDA.ones(datLen,datLen)
 
     # holo .= CUFFT.fftshift(plan*d_img) .* transF
     # fft2d!(plan,holo,d_img,transF)
     holo .= CUFFT.fftshift(CUFFT.fft(d_img)) .* transF
-    # for idx in 1:100
-    #     holo .= holo .* transInt
-    #     # ifft2d!(iplan,holo,d_img)
-    #     # d_img .= Float32.(abs.(iplan*CUFFT.fftshift(holo)))
-    #     d_img .= Float32.(abs.(CUFFT.ifft(CUFFT.fftshift(holo))))
-    #     @cuda threads = threads blocks = blocks CuUpdateImposed(datLen,d_img,impImg)
-    # end
+    for idx in 1:100
+        holo .= holo .* transInt
+        # ifft2d!(iplan,holo,d_img)
+        # d_img .= Float32.(abs.(iplan*CUFFT.fftshift(holo)))
+        d_img .= Float32.(abs.(CUFFT.ifft(CUFFT.fftshift(holo))))
+        @cuda threads = threads blocks = blocks CuUpdateImposed(datLen,d_img,impImg)
+    end
 
     # CUFFT.cufftDestroy(plan)
     # CUFFT.cufftDestroy(iplan)
     output = Array(impImg)
     # return img
-    return output[div(imgLen,2)+1:div(imgLen,2)+imgLen,div(imgLen,2)+1:div(imgLen,2)+imgLen]
+    return output
+    # return output[div(imgLen,2)+1:div(imgLen,2)+imgLen,div(imgLen,2)+1:div(imgLen,2)+imgLen]
 end
 
 # using ImageView
