@@ -46,14 +46,14 @@ function imgAcquisition(camList,state,stopbutton,imgLen,gridSize,intrSize, srchS
     imageax1 = Makie.Axis(f[1, 1], aspect = DataAspect(), yreversed = false, title = "Camera 1")
     imageax2 = Makie.Axis(f[1, 2], aspect = DataAspect(), yreversed = false, title = "Camera 2")
     arrowax = Makie.Axis(f[1,3], aspect = 1 , yreversed=false, backgroundcolor="white")
-    imgObservable1 = Observable(rotr90(RGB.(arr1,arr1,arr1)))
-    imgObservable2 = Observable(rotr90(RGB.(arr2,arr2,arr2)))
+    imgObservable1 = Observable(@views rotr90(RGB.(arr1,arr1,arr1)))
+    imgObservable2 = Observable(@views rotr90(RGB.(arr2,arr2,arr2)))
     image!(imageax1,imgObservable1)
     image!(imageax2,imgObservable2)
 
-    vecxObservable = Observable(rotr90(@view vecArray[:,:,1]))
-    vecyObservable = Observable(-rotr90(@view vecArray[:,:,2]))
-    strObservable = Observable(vec(sqrt.(vecArray[:,:,1].^2 .+ vecArray[:,:,2].^2)))
+    vecxObservable = Observable(@views rotr90(vecArray[:,:,1]))
+    vecyObservable = Observable(@views -rotr90(vecArray[:,:,2]))
+    strObservable = Observable(@views vec(sqrt.(vecArray[:,:,1].^2 .+ vecArray[:,:,2].^2)))
 
     n = div(imgLen,gridSize) -1
     xs = [i*gridSize for i in 1:n]
@@ -81,12 +81,12 @@ function imgAcquisition(camList,state,stopbutton,imgLen,gridSize,intrSize, srchS
         imp1 = getImposed(arr1,transF,transInt,imgLen,blockSize)
         # imp2 = arr2
         imp2 = getImposed(arr2,transF,transInt,imgLen,blockSize)
-        vecArray = getPIVMap_GPU(imp1,imp2,imgLen,gridSize,intrSize,srchSize)
-        imgObservable1[] = rotr90(RGB.(imp1,imp1,imp1))
-        imgObservable2[] = rotr90(RGB.(imp2,imp2,imp2))
-        vecxObservable[] = rotr90(vecArray[:,:,1])
-        vecyObservable[] = -rotr90(vecArray[:,:,2])
-        strObservable[] = vec(sqrt.(vecArray[:,:,1].^2 .+ vecArray[:,:,2].^2))
+        # vecArray = getPIVMap_GPU(imp1,imp2,imgLen,gridSize,intrSize,srchSize)
+        imgObservable1[] = @views rotr90(RGB.(imp1,imp1,imp1))
+        imgObservable2[] = @views rotr90(RGB.(imp2,imp2,imp2))
+        vecxObservable[] = @views rotr90(vecArray[:,:,1])
+        vecyObservable[] = @views -rotr90(vecArray[:,:,2])
+        strObservable[] = @views vec(sqrt.(vecArray[:,:,1].^2 .+ vecArray[:,:,2].^2))
         sleep(0.01)
         Makie.save("./loopfig.pdf",f)
     end

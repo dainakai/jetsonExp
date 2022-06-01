@@ -223,33 +223,33 @@ function CuUpdateImposed(datLen::Int64, input::CuDeviceArray{Float32,2},imposed:
     return nothing
 end
 
-function getImposed(img::Array{Float32,2},transF::CuArray{ComplexF32,2},transInt::CuArray{ComplexF32,2},imgLen::Int64=1024,blockSize::Int64=16)
+function getImposed(img::Array{Float32,2},transF::CuArray{ComplexF32,2},transInt::CuArray{ComplexF32,2},imgLen::Int64=512,blockSize::Int64=16)
     datLen = imgLen*2
     threads = (blockSize,blockSize)
     blocks = (cld(datLen,blockSize),cld(datLen,blockSize))
 
+    d_img = CuArray{ComplexF32}(undef,(datLen,datLen))
+    plan = CUFFT.plan_fft(d_img)
+    iplan = CUFFT.plan_ifft(d_img)
+    # d_img .= 0.5
     tmpdata = cu(img)
-    d_img = CuArray{Float32}(undef,(datLen,datLen))
-    d_img .= mean(tmpdata)
-    d_img[div(imgLen,2)+1:div(imgLen,2)+imgLen,div(imgLen,2)+1:div(imgLen,2)+imgLen] .= tmpdata[:,:]
-    # sqr = CuArray{Float32}(undef,(datLen,datLen))
-    # transF = CuArray{ComplexF32}(undef,(datLen,datLen))
-    # transInt = CuArray{ComplexF32}(undef,(datLen,datLen))
+    d_img .= ComplexF32(mean(tmpdata))
+    @views d_img[div(imgLen,2)+1:div(imgLen,2)+imgLen,div(imgLen,2)+1:div(imgLen,2)+imgLen] .= ComplexF32.(tmpdata)
     holo = CuArray{ComplexF32}(undef,(datLen,datLen))
     impImg = CUDA.ones(datLen,datLen)
 
-    # @cuda threads = threads blocks = blocks CuTransSqr(datLen,wavLen,dx,sqr)
-    # @cuda threads = threads blocks = blocks CuTransFunc(zF,wavLen,datLen,sqr,transF)
-    # @cuda threads = threads blocks = blocks CuTransFunc(dz,wavLen,datLen,sqr,transInt)
-
-    holo = CUFFT.fftshift(CUFFT.fft(d_img)) .* transF
+    holo .= @views CUFFT.fftshift(plan*d_img) .* transF
+    # holo .= @views CUFFT.fftshift(CUFFT.fft(d_img)) .* transF
     for idx in 1:100
-        holo = holo .* transInt
-        d_img = Float32.(abs.(CUFFT.ifft(CUFFT.fftshift(holo))))
+        holo .= @views holo .* transInt
+        d_img .= @views Float32.(abs.(iplan*CUFFT.fftshift(holo)))
+        # d_img .= @views Float32.(abs.(CUFFT.ifft(CUFFT.fftshift(holo))))
         @cuda threads = threads blocks = blocks CuUpdateImposed(datLen,d_img,impImg)
-        # save(string("./reconstInv/",lpad(idx,5,"0"),".bmp"),img)
     end
 
+    CUFFT.cufftDestroy(plan)
+    CUFFT.cufftDestroy(iplan)
     output = Array(impImg)
+    # return img
     return output[div(imgLen,2)+1:div(imgLen,2)+imgLen,div(imgLen,2)+1:div(imgLen,2)+imgLen]
 end
