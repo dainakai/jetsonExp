@@ -6,8 +6,12 @@ using CUDA
 
 include("imposedHoloFunc.jl")
 
-function imgAcquisition(camList,state,stopbutton,imgLen,gridSize,intrSize, srchSize,zF=100.0*1000,dz=50.0,wavLen=0.532,dx=3.45/0.5)
+function imgAcquisition(camList,state,stopbutton,imgLen,gridSize,intrSize, srchSize)
     # Gabor Reconstruction Prepareing
+    zF::Float32 = 100.0*1000
+    dz::Float32 = 50.0
+    wavLen::Float32 = 0.532
+    dx::Float32 = 3.45/0.5
     datLen = imgLen*2
     blockSize = 16
     threads = (blockSize,blockSize)
@@ -32,8 +36,8 @@ function imgAcquisition(camList,state,stopbutton,imgLen,gridSize,intrSize, srchS
     img2 = getimage(cam2)
     stop!(cam1)
     stop!(cam2)
-    arr1 = CameraImage(img1,Float32, normalize = true)
-    arr2 = CameraImage(img2,Float32, normalize = true)
+    arr1 = Array(CameraImage(img1,Float32, normalize = true))
+    arr2 = Array(CameraImage(img2,Float32, normalize = true))
     display(size(arr1))
     vecArray = getPIVMap_GPU(arr1,arr2,imgLen,gridSize,intrSize,srchSize)
     println("PIV OK")
@@ -47,8 +51,8 @@ function imgAcquisition(camList,state,stopbutton,imgLen,gridSize,intrSize, srchS
     image!(imageax1,imgObservable1)
     image!(imageax2,imgObservable2)
 
-    vecxObservable = Observable(rotr90(vecArray[:,:,1]))
-    vecyObservable = Observable(-rotr90(vecArray[:,:,2]))
+    vecxObservable = Observable(rotr90(@view vecArray[:,:,1]))
+    vecyObservable = Observable(-rotr90(@view vecArray[:,:,2]))
     strObservable = Observable(vec(sqrt.(vecArray[:,:,1].^2 .+ vecArray[:,:,2].^2)))
 
     n = div(imgLen,gridSize) -1
@@ -71,8 +75,8 @@ function imgAcquisition(camList,state,stopbutton,imgLen,gridSize,intrSize, srchS
         getimage!(cam2,img2)
         stop!(cam1)
         stop!(cam2)
-        arr1 = CameraImage(img1,Float32, normalize = true)
-        arr2 = CameraImage(img2,Float32, normalize = true)
+        arr1 = Array(CameraImage(img1,Float32, normalize = true))
+        arr2 = Array(CameraImage(img2,Float32, normalize = true))
         # imp1 = arr1
         imp1 = getImposed(arr1,transF,transInt,imgLen,blockSize)
         # imp2 = arr2

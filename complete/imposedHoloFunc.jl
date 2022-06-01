@@ -14,8 +14,8 @@ function CuGetVector!(vecArray::CuDeviceArray{Float32,3},corArray::CuDeviceArray
         y0::Int64 = 0
         
         tmp::Float32 = 0.0
-        for i in 1:corArrSize
-            for j in 1:corArrSize
+        @inbounds for j in 1:corArrSize
+            for i in 1:corArrSize
                 if corArray[corArrSize*(gridIdxy-1)+i,corArrSize*(gridIdxx-1)+j] > tmp
                     x0 = corArrSize*(gridIdxx-1)+j
                     y0 = corArrSize*(gridIdxy-1)+i
@@ -24,8 +24,8 @@ function CuGetVector!(vecArray::CuDeviceArray{Float32,3},corArray::CuDeviceArray
             end
         end
 
-        # if x0 == 1 || x0 == corArrSize*(gridNum-1) || y0 == 1 || y0 == corArrSize*(gridNum-1)
-        if true
+        if x0 == 1 || x0 == corArrSize*(gridNum-1) || y0 == 1 || y0 == corArrSize*(gridNum-1)
+        # if true
             vecArray[gridIdxy,gridIdxx,1] = Float32(x0) - Float32(intrSize)/2.0 -1.0  - (gridIdxx-1)*corArrSize
             vecArray[gridIdxy,gridIdxx,2] = Float32(y0) - Float32(intrSize)/2.0 -1.0  - (gridIdxy-1)*corArrSize
 
@@ -69,8 +69,8 @@ function CuGetCrossCor!(corArray::CuDeviceArray{Float32,2},img1::CuDeviceArray{F
         denomA::Float32 = 0.0
         denomB::Float32 = 0.0
 
-        for i in 1:intrSize
-            for j in 1:intrSize
+        @inbounds for j in 1:intrSize
+            for i in 1:intrSize
                 meanA += img1[a1+i,a2+j]
                 meanB += img2[b1+i,b2+j]
             end
@@ -78,8 +78,8 @@ function CuGetCrossCor!(corArray::CuDeviceArray{Float32,2},img1::CuDeviceArray{F
         meanA /= Float32(intrSize^2)
         meanB /= Float32(intrSize^2)
 
-        for i in 1:intrSize
-            for j in 1:intrSize
+        @inbounds for j in 1:intrSize
+            for i in 1:intrSize
                 num += (img1[a1+i,a2+j]-meanA)*(img2[b1+i,b2+j]-meanB)
                 denomA += (img1[a1+i,a2+j]-meanA)^2
                 denomB += (img2[b1+i,b2+j]-meanB)^2
@@ -100,7 +100,7 @@ function getPIVMap_GPU(image1::Array{Float32,2}, image2::Array{Float32,2}, imgLe
     corArray = CuArray{Float32}(undef,((srchSize-intrSize+1)*(gridNum-1),(srchSize-intrSize+1)*(gridNum-1)))
     vecArray = CuArray{Float32}(undef,(gridNum-1,gridNum-1,2))
 
-    blockSize = 16
+    blockSize = 8
     threads1 = (blockSize,blockSize)
     blocks1 = (cld((srchSize-intrSize+1)*(gridNum-1),blockSize),cld((srchSize-intrSize+1),blockSize))
     blocks2 = (cld(gridNum-1,blockSize),cld(gridNum-1,blockSize))
@@ -194,7 +194,7 @@ function loadholo(path::String)
     out::Array{Float32,2} = Float32.(channelview(Gray.(load(path))))
 end
 
-function CuTransSqr(datLen::Int16, wavLen::Float32, dx::Float32, Plane::CuDeviceArray{Float32,2})
+function CuTransSqr(datLen::Int64, wavLen::Float32, dx::Float32, Plane::CuDeviceArray{Float32,2})
     x = (blockIdx().x-1)*blockDim().x + threadIdx().x
     y = (blockIdx().y-1)*blockDim().y + threadIdx().y
     if x <= datLen && y <= datLen
@@ -203,7 +203,7 @@ function CuTransSqr(datLen::Int16, wavLen::Float32, dx::Float32, Plane::CuDevice
     return nothing
 end
 
-function CuTransFunc(z0::Float32, wavLen::Float32, datLen::Int16, d_sqrPart::CuDeviceArray{Float32,2}, Plane::CuDeviceArray{ComplexF32,2})
+function CuTransFunc(z0::Float32, wavLen::Float32, datLen::Int64, d_sqrPart::CuDeviceArray{Float32,2}, Plane::CuDeviceArray{ComplexF32,2})
     x = (blockIdx().x-1)*blockDim().x + threadIdx().x
     y = (blockIdx().y-1)*blockDim().y + threadIdx().y
     if x <= datLen && y <= datLen
@@ -223,7 +223,7 @@ function CuUpdateImposed(datLen::Int64, input::CuDeviceArray{Float32,2},imposed:
     return nothing
 end
 
-function getImposed(img::Array{Float32,2},transF::CuDeviceArray{ComplexF32,2},transInt::CuDeviceArray{ComplexF32,2},imgLen::Int64=1024,blockSize::Int64=16)
+function getImposed(img::Array{Float32,2},transF::CuArray{ComplexF32,2},transInt::CuArray{ComplexF32,2},imgLen::Int64=1024,blockSize::Int64=16)
     datLen = imgLen*2
     threads = (blockSize,blockSize)
     blocks = (cld(datLen,blockSize),cld(datLen,blockSize))
