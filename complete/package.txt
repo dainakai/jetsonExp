@@ -1,0 +1,1 @@
+create_sysimage(["CUDA","Spinnaker","StatsBase","Images","Gtk","CairoMakie"],sysimage_path="./sysimage/funccomp.so",precompile_execution_file="./imposedHoloFunc.jl")

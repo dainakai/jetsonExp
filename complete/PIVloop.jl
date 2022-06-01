@@ -78,9 +78,9 @@ function imgAcquisition(camList,state,stopbutton,imgLen,gridSize,intrSize, srchS
         arr1 = Array(CameraImage(img1,Float32, normalize = true))
         arr2 = Array(CameraImage(img2,Float32, normalize = true))
         # imp1 = arr1
-        imp1 = getImposed(arr1,transF,transInt,imgLen,blockSize)
+        @time imp1 = getImposed(arr1,transF,transInt,imgLen,blockSize)
         # imp2 = arr2
-        imp2 = getImposed(arr2,transF,transInt,imgLen,blockSize)
+        @time imp2 = getImposed(arr2,transF,transInt,imgLen,blockSize)
         # vecArray = getPIVMap_GPU(imp1,imp2,imgLen,gridSize,intrSize,srchSize)
         imgObservable1[] = @views rotr90(RGB.(imp1,imp1,imp1))
         imgObservable2[] = @views rotr90(RGB.(imp2,imp2,imp2))
@@ -90,6 +90,7 @@ function imgAcquisition(camList,state,stopbutton,imgLen,gridSize,intrSize, srchS
         sleep(0.01)
         Makie.save("./loopfig.pdf",f)
     end
+    GC.gc()
     Spinnaker._release!(cam1)
     Spinnaker._release!(cam2)
     println("Stop Clicked!")

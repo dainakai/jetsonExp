@@ -251,13 +251,13 @@ function getImposed(img::Array{Float32,2},transF::CuArray{ComplexF32,2},transInt
     # holo .= CUFFT.fftshift(plan*d_img) .* transF
     # fft2d!(plan,holo,d_img,transF)
     holo .= CUFFT.fftshift(CUFFT.fft(d_img)) .* transF
-    for idx in 1:100
-        holo .= holo .* transInt
-        # ifft2d!(iplan,holo,d_img)
-        # d_img .= Float32.(abs.(iplan*CUFFT.fftshift(holo)))
-        d_img .= Float32.(abs.(CUFFT.ifft(CUFFT.fftshift(holo))))
-        @cuda threads = threads blocks = blocks CuUpdateImposed(datLen,d_img,impImg)
-    end
+    # for idx in 1:100
+    #     holo .= holo .* transInt
+    #     # ifft2d!(iplan,holo,d_img)
+    #     # d_img .= Float32.(abs.(iplan*CUFFT.fftshift(holo)))
+    #     d_img .= Float32.(abs.(CUFFT.ifft(CUFFT.fftshift(holo))))
+    #     @cuda threads = threads blocks = blocks CuUpdateImposed(datLen,d_img,impImg)
+    # end
 
     # CUFFT.cufftDestroy(plan)
     # CUFFT.cufftDestroy(iplan)
@@ -266,25 +266,25 @@ function getImposed(img::Array{Float32,2},transF::CuArray{ComplexF32,2},transInt
     return output[div(imgLen,2)+1:div(imgLen,2)+imgLen,div(imgLen,2)+1:div(imgLen,2)+imgLen]
 end
 
-using ImageView
-function testFunc()
-    img1 = loadholo("cam1.bmp")
-    img2 = loadholo("cam2.bmp")
-    imgLen = 1024
-    zF::Float32 = 100.0*1000
-    dz::Float32 = 50.0
-    wavLen::Float32 = 0.532
-    dx::Float32 = 3.45/0.5
-    datLen = imgLen*2
-    blockSize = 16
-    threads = (blockSize,blockSize)
-    blocks = (cld(datLen,blockSize),cld(datLen,blockSize))
-    sqr = CuArray{Float32}(undef,(datLen,datLen))
-    transF = CuArray{ComplexF32}(undef,(datLen,datLen))
-    transInt = CuArray{ComplexF32}(undef,(datLen,datLen))
-    @cuda threads = threads blocks = blocks CuTransSqr(datLen,wavLen,dx,sqr)
-    @cuda threads = threads blocks = blocks CuTransFunc(zF,wavLen,datLen,sqr,transF)
-    @cuda threads = threads blocks = blocks CuTransFunc(dz,wavLen,datLen,sqr,transInt)
-    @time imp1 = getImposed(img1,transF,transInt,imgLen)
-    imshow(imp1)
-end
+# using ImageView
+# function testFunc()
+#     img1 = loadholo("cam1.bmp")
+#     img2 = loadholo("cam2.bmp")
+#     imgLen = 1024
+#     zF::Float32 = 100.0*1000
+#     dz::Float32 = 50.0
+#     wavLen::Float32 = 0.532
+#     dx::Float32 = 3.45/0.5
+#     datLen = imgLen*2
+#     blockSize = 16
+#     threads = (blockSize,blockSize)
+#     blocks = (cld(datLen,blockSize),cld(datLen,blockSize))
+#     sqr = CuArray{Float32}(undef,(datLen,datLen))
+#     transF = CuArray{ComplexF32}(undef,(datLen,datLen))
+#     transInt = CuArray{ComplexF32}(undef,(datLen,datLen))
+#     @cuda threads = threads blocks = blocks CuTransSqr(datLen,wavLen,dx,sqr)
+#     @cuda threads = threads blocks = blocks CuTransFunc(zF,wavLen,datLen,sqr,transF)
+#     @cuda threads = threads blocks = blocks CuTransFunc(dz,wavLen,datLen,sqr,transInt)
+#     @time imp1 = getImposed(img1,transF,transInt,imgLen)
+#     imshow(imp1)
+# end
