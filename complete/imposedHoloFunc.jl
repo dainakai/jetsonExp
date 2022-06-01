@@ -95,7 +95,7 @@ end
 GPU CUDA Function
 画像配列 `image1` と `image2` のPIVマップを計算し、返します。1はx, 2はy。
 """
-function getPIVMap_GPU(image1, image2, imgLen = 1024, gridSize = 128, intrSize = 128, srchSize = 256)
+function getPIVMap_GPU(image1::Array{Float32,2}, image2::Array{Float32,2}, imgLen = 1024, gridSize = 128, intrSize = 128, srchSize = 256)
     gridNum = div(imgLen, gridSize)
     corArray = CuArray{Float32}(undef,((srchSize-intrSize+1)*(gridNum-1),(srchSize-intrSize+1)*(gridNum-1)))
     vecArray = CuArray{Float32}(undef,(gridNum-1,gridNum-1,2))
@@ -126,7 +126,7 @@ end
 """
 2カメラの設定
 """
-function configSetup(camList, imgLen = 1024, exposure = 400.0, expratio = 0.5, gain = 0.0)
+function configSetup(camList::CameraList, imgLen = 1024, exposure = 400.0, expratio = 0.5, gain = 0.0)
     cam1 = camList[0]
     cam2 = camList[1]
     
@@ -190,11 +190,11 @@ function configSetup(camList, imgLen = 1024, exposure = 400.0, expratio = 0.5, g
     return nothing
 end
 
-function loadholo(path)
-    out = Float32.(channelview(Gray.(load(path))))
+function loadholo(path::String)
+    out::Array{Float32,2} = Float32.(channelview(Gray.(load(path))))
 end
 
-function CuTransSqr(datLen, wavLen, dx, Plane)
+function CuTransSqr(datLen::Int16, wavLen::Float32, dx::Float32, Plane::CuDeviceArray{Float32,2})
     x = (blockIdx().x-1)*blockDim().x + threadIdx().x
     y = (blockIdx().y-1)*blockDim().y + threadIdx().y
     if x <= datLen && y <= datLen
@@ -203,7 +203,7 @@ function CuTransSqr(datLen, wavLen, dx, Plane)
     return nothing
 end
 
-function CuTransFunc(z0, wavLen, datLen, d_sqrPart, Plane)
+function CuTransFunc(z0::Float32, wavLen::Float32, datLen::Int16, d_sqrPart::CuDeviceArray{Float32,2}, Plane::CuDeviceArray{ComplexF32,2})
     x = (blockIdx().x-1)*blockDim().x + threadIdx().x
     y = (blockIdx().y-1)*blockDim().y + threadIdx().y
     if x <= datLen && y <= datLen
@@ -212,7 +212,7 @@ function CuTransFunc(z0, wavLen, datLen, d_sqrPart, Plane)
     return nothing
 end
 
-function CuUpdateImposed(datLen, input,imposed)
+function CuUpdateImposed(datLen::Int64, input::CuDeviceArray{Float32,2},imposed::CuDeviceArray{Float32,2})
     x = (blockIdx().x-1)*blockDim().x + threadIdx().x
     y = (blockIdx().y-1)*blockDim().y + threadIdx().y
     if x <= datLen && y <= datLen
@@ -223,7 +223,7 @@ function CuUpdateImposed(datLen, input,imposed)
     return nothing
 end
 
-function getImposed(img,transF,transInt,imgLen=1024,blockSize=16)
+function getImposed(img::Array{Float32,2},transF::CuDeviceArray{ComplexF32,2},transInt::CuDeviceArray{ComplexF32,2},imgLen::Int64=1024,blockSize::Int64=16)
     datLen = imgLen*2
     threads = (blockSize,blockSize)
     blocks = (cld(datLen,blockSize),cld(datLen,blockSize))
