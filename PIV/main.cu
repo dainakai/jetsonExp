@@ -2,7 +2,14 @@
 #include "hostfunctions.h"
 #include <stdlib.h>
 #include <stdio.h>
+#include <cuda_runtime.h>
 #include <cufft.h>
+#include "Spinnaker.h"
+#include "SpinGenApi/SpinnakerGenApi.h"
+#include <opencv2/core.hpp>
+#include <opencv2/imgcodecs.hpp>
+#include <opencv2/highgui.hpp>
+#include <opencv2/core/types_c.h>
 
 int main(int argc, char** argv){
     printf("%s Starting...\n", argv[0]);
@@ -10,10 +17,10 @@ int main(int argc, char** argv){
     const char* pathImg1 = "./cam1.bmp";
     const char* pathImg2 = "./cam2.bmp";
 
-    const int imgLen = 512;
-    const int intrSize = 128;
-    const int gridSize = 128;
-    const int srchSize = 256;
+    const int imgLen = 1024;
+    const int intrSize = imgLen/8;
+    const int gridSize = imgLen/8;
+    const int srchSize = imgLen/4;
     const int gridNum = (int)(imgLen/gridSize);
 
     const int blockSize = 32;
@@ -27,7 +34,6 @@ int main(int argc, char** argv){
 
     getFloatimage(fimg1,imgLen,pathImg1);
     getFloatimage(fimg2,imgLen,pathImg2);
-    printf("%f\n",fimg1[imgLen*(imgLen-1)]);
 
     float vecArrayX[(gridNum-1)*(gridNum-1)];
     float vecArrayY[(gridNum-1)*(gridNum-1)];
@@ -43,6 +49,15 @@ int main(int argc, char** argv){
         }
         printf("\n");
     }
+
+    saveVecArray(vecArrayX,vecArrayY,gridSize,gridNum);
+    plotVecFieldOnGnuplot(imgLen);
+
+    Spinnaker::SystemPtr system = Spinnaker::System::GetInstance();
+    Spinnaker::CameraList camList = system->GetCameras();
+    cameraSetup(camList,1024,600,400);
+
+    system->ReleaseInstance();
 
     free(UIntimage1);
     free(UIntimage2);
