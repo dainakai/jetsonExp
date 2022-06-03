@@ -23,7 +23,7 @@ int main(int argc, char** argv){
     const int srchSize = imgLen/4;
     const int gridNum = (int)(imgLen/gridSize);
 
-    const int blockSize = 32;
+    const int blockSize = 16;
 
     unsigned char *UIntimage1, *UIntimage2;
     float *fimg1, *fimg2;

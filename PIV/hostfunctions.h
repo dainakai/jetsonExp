@@ -7,6 +7,7 @@
 
 #include <stdlib.h>
 #include <stdio.h>
+#include <iostream>
 #include "Spinnaker.h"
 #include "SpinGenApi/SpinnakerGenApi.h"
 
@@ -121,13 +122,15 @@ void cameraSetup(Spinnaker::CameraList camList, int imgLen, int cam2OffSetX, int
     }
 
     Spinnaker::CameraPtr pCam[numCameras];
-    printf("CameraNumber\tModelName\tSerialNumber\n");
+    // printf("CameraNumber\tModelName\tSerialNumber\n");
+    std::cout << "Camera" << "\t" << "ModelName" << "\t\t\t" << "SerialNumber" << std::endl;
     for (int i = 0; i < numCameras; i++){
         pCam[i] = camList.GetByIndex(i);
         pCam[i]->Init();
         Spinnaker::GenICam::gcstring modelName = pCam[i]->TLDevice.DeviceModelName.GetValue();
         Spinnaker::GenICam::gcstring serialNum = pCam[i]->TLDevice.DeviceSerialNumber.GetValue();
-        printf("%d\t%s\t%s\n",i,modelName,serialNum);
+        // printf("%d\t%s\t%s\n",i,modelName,serialNum);
+        std::cout << i << "\t" << modelName << "\t" << serialNum << std::endl;
     }
     printf("\n");
 
