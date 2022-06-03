@@ -85,20 +85,32 @@ __global__ void CuGetVector(float *vecArrayX, float *vecArrayY, float *corArray,
             }
         }
 
-        float valy1x0 = corArray[corArrSize*(gridNum-1)*(y0+1) + x0];
-        float valy0x0 = corArray[corArrSize*(gridNum-1)*y0 + x0];
-        float valyInv1x0 = corArray[corArrSize*(gridNum-1)*(y0-1) + x0];
-        float valy0x1 = corArray[corArrSize*(gridNum-1)*y0 + x0+1];
-        float valy0xInv1 = corArray[corArrSize*(gridNum-1)*y0 + x0-1];
-        
-        if (valy1x0-2.0*valy0x0+valyInv1x0==0.0 || valy0x1-2.0*valy0x0+valy0xInv1==0.0){
-            valy0x0 += 0.00001;
-        }
+        if (x0==0 || y0==0 || x0==corArrSize*(gridNum-1)-1 || y0==corArrSize*(gridNum-1)-1){
+            vecArrayX[(gridNum-1)*gridIdxy+gridIdxx] = (float)x0 - (float)(intrSize)/2.0 - gridIdxx*corArrSize;
+            vecArrayY[(gridNum-1)*gridIdxy+gridIdxx] = (float)y0 - (float)(intrSize)/2.0 - gridIdxy*corArrSize;
+        }else{
+            float valy1x0 = corArray[corArrSize*(gridNum-1)*(y0+1) + x0];
+            float valy0x0 = corArray[corArrSize*(gridNum-1)*y0 + x0];
+            float valyInv1x0 = corArray[corArrSize*(gridNum-1)*(y0-1) + x0];
+            float valy0x1 = corArray[corArrSize*(gridNum-1)*y0 + x0+1];
+            float valy0xInv1 = corArray[corArrSize*(gridNum-1)*y0 + x0-1];
 
-        vecArrayX[(gridNum-1)*gridIdxy+gridIdxx] = (float)x0 - (valy0x1-valy0xInv1)/(valy0x1-2.0*valy0x0+valy0xInv1)/2.0 - (float)(intrSize)/2.0 - gridIdxx*corArrSize;
-        // vecArrayX[(gridNum-1)*gridIdxy+gridIdxx] = (float)x0 - intrSize/2.0 - gridIdxx*corArrSize;
-        vecArrayY[(gridNum-1)*gridIdxy+gridIdxx] = (float)y0 - (valy1x0-valyInv1x0)/(valy1x0-2.0*valy0x0+valyInv1x0)/2.0 - (float)(intrSize)/2.0 - gridIdxy*corArrSize;
-        // vecArrayY[(gridNum-1)*gridIdxy+gridIdxx] = (float)y0 - intrSize/2.0 - gridIdxy*corArrSize;
+            if (valy1x0-2.0*valy0x0+valyInv1x0==0.0 || valy0x1-2.0*valy0x0+valy0xInv1==0.0){
+                valy0x0 += 0.00001;
+            }
+
+            vecArrayX[(gridNum-1)*gridIdxy+gridIdxx] = (float)x0 - (valy0x1-valy0xInv1)/(valy0x1-2.0*valy0x0+valy0xInv1)/2.0 - (float)(intrSize)/2.0 - gridIdxx*corArrSize;
+            vecArrayY[(gridNum-1)*gridIdxy+gridIdxx] = (float)y0 - (valy1x0-valyInv1x0)/(valy1x0-2.0*valy0x0+valyInv1x0)/2.0 - (float)(intrSize)/2.0 - gridIdxy*corArrSize;
+        }
+    }
+}
+
+__global__ void errorCorrect(float *corArrayIn, float *corArrayOut, int corArrSize, int gridNum){
+    int x = blockIdx.x*blockDim.x +threadIdx.x;
+    int y = blockIdx.y*blockDim.y +threadIdx.y;
+
+    if (x<corArrSize*(gridNum-1) && y<corArrSize*(gridNum-1)){
+        
     }
 }
 
