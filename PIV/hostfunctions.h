@@ -10,6 +10,8 @@
 #include <iostream>
 #include "Spinnaker.h"
 #include "SpinGenApi/SpinnakerGenApi.h"
+#include <gtk/gtk.h>
+#include <string>
 
 /**
  * @fn
@@ -181,4 +183,17 @@ void cameraSetup(Spinnaker::CameraList camList, int imgLen, int cam2OffSetX, int
     pCam[1]->TriggerOverlap.SetValue(Spinnaker::TriggerOverlapEnums::TriggerOverlap_ReadOut);
 
     printf("Camera Setup Completed.\n\n");
+}
+
+/**
+ * @fn
+ * @brief ボタンが押されたときに呼び出されるコールバック関数。
+ * @return なし
+ */
+void clicked_button(GtkWidget* widget, gpointer data)
+{
+    int pn = GPOINTER_TO_INT(data);
+    pn = 0;
+    // exit(0); // プログラムが終了する
+    // gtk_main_quit(); // プログラムが終了する
 }

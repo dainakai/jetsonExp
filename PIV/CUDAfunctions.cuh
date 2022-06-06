@@ -7,7 +7,15 @@
 
 #include <stdio.h>
 #include <stdlib.h>
+#include <iostream>
 #include <math.h>
+#include <cuda.h>
+#include <cuda_runtime.h>
+#include <cufft.h>
+#include "Spinnaker.h"
+#include "SpinGenApi/SpinnakerGenApi.h"
+#include <thrust/host_vector.h>
+#include <thrust/device_vector.h>
 
 /** @def
  * CUDA組み込み関数のチェックマクロ。cudaMalloc や cudaMemcpy に。
@@ -105,12 +113,39 @@ __global__ void CuGetVector(float *vecArrayX, float *vecArrayY, float *corArray,
     }
 }
 
-__global__ void errorCorrect(float *corArrayIn, float *corArrayOut, int corArrSize, int gridNum){
+__global__ void CuErrorCorrect(float *corArrayIn, float *corArrayOut, int corArrSize, int gridNum){
     int x = blockIdx.x*blockDim.x +threadIdx.x;
     int y = blockIdx.y*blockDim.y +threadIdx.y;
 
     if (x<corArrSize*(gridNum-1) && y<corArrSize*(gridNum-1)){
-        
+        int gridIdxx = x/corArrSize;
+        int gridIdxy = y/corArrSize;
+
+        // Four Corners
+        if ((gridIdxx==0 || gridIdxx==(gridNum-2))&&(gridIdxy==0 || gridIdxy==(gridNum-2))){
+            corArrayOut[y*corArrSize*(gridNum-1)+x] = corArrayIn[y*corArrSize*(gridNum-1)+x];
+        }else if (gridIdxx==0 || gridIdxx==(gridNum-2)){
+            corArrayOut[y*corArrSize*(gridNum-1)+x] = 0.0;
+            corArrayOut[y*corArrSize*(gridNum-1)+x] += corArrayIn[y*corArrSize*(gridNum-1)+x-corArrSize]/3.0;
+            corArrayOut[y*corArrSize*(gridNum-1)+x] += corArrayIn[y*corArrSize*(gridNum-1)+x+corArrSize]/3.0;
+            corArrayOut[y*corArrSize*(gridNum-1)+x] += corArrayIn[y*corArrSize*(gridNum-1)+x]/3.0;
+        }else if (gridIdxy==0 || gridIdxy==(gridNum-2)){
+            corArrayOut[y*corArrSize*(gridNum-1)+x] = 0.0;
+            corArrayOut[y*corArrSize*(gridNum-1)+x] += corArrayIn[y*corArrSize*(gridNum-1)+x]/3.0;
+            corArrayOut[y*corArrSize*(gridNum-1)+x] += corArrayIn[y*corArrSize*(gridNum-1+1)+x]/3.0;
+            corArrayOut[y*corArrSize*(gridNum-1)+x] += corArrayIn[y*corArrSize*(gridNum-1-1)+x]/3.0;
+        }else{
+            corArrayOut[y*corArrSize*(gridNum-1)+x] = 0.0;
+            corArrayOut[y*corArrSize*(gridNum-1)+x] += corArrayIn[y*corArrSize*(gridNum-1)+x]/9.0;
+            corArrayOut[y*corArrSize*(gridNum-1)+x] += corArrayIn[y*corArrSize*(gridNum-1-1)+x]/9.0;
+            corArrayOut[y*corArrSize*(gridNum-1)+x] += corArrayIn[y*corArrSize*(gridNum-1+1)+x]/9.0;
+            corArrayOut[y*corArrSize*(gridNum-1)+x] += corArrayIn[y*corArrSize*(gridNum-1)+x-corArrSize]/9.0;
+            corArrayOut[y*corArrSize*(gridNum-1)+x] += corArrayIn[y*corArrSize*(gridNum-1)+x+corArrSize]/9.0;
+            corArrayOut[y*corArrSize*(gridNum-1)+x] += corArrayIn[y*corArrSize*(gridNum-1-1)+x-corArrSize]/9.0;
+            corArrayOut[y*corArrSize*(gridNum-1)+x] += corArrayIn[y*corArrSize*(gridNum-1-1)+x+corArrSize]/9.0;
+            corArrayOut[y*corArrSize*(gridNum-1)+x] += corArrayIn[y*corArrSize*(gridNum-1+1)+x-corArrSize]/9.0;
+            corArrayOut[y*corArrSize*(gridNum-1)+x] += corArrayIn[y*corArrSize*(gridNum-1+1)+x+corArrSize]/9.0;
+        }
     }
 }
 
@@ -127,8 +162,9 @@ __global__ void errorCorrect(float *corArrayIn, float *corArrayOut, int corArrSi
 void getPIVMapOnGPU(float *vecArrayX, float *vecArrayY, float *img1, float *img2, int imgLen, int gridSize, int intrSize, int srchSize, int blockSize){
     const int gridNum = (int)(imgLen/gridSize);
     
-    float *dev_corArray, *dev_vecArrayX, *dev_vecArrayY;
+    float *dev_corArray, *dev_corArray2, *dev_vecArrayX, *dev_vecArrayY;
     CHECK(cudaMalloc((void **)&dev_corArray, sizeof(float)*(srchSize-intrSize+1)*(gridNum-1)*(srchSize-intrSize+1)*(gridNum-1)));
+    CHECK(cudaMalloc((void **)&dev_corArray2, sizeof(float)*(srchSize-intrSize+1)*(gridNum-1)*(srchSize-intrSize+1)*(gridNum-1)));
     CHECK(cudaMalloc((void **)&dev_vecArrayX, sizeof(float)*(gridNum-1)*(gridNum-1)));
     CHECK(cudaMalloc((void **)&dev_vecArrayY, sizeof(float)*(gridNum-1)*(gridNum-1)));
 
@@ -144,6 +180,7 @@ void getPIVMapOnGPU(float *vecArrayX, float *vecArrayY, float *img1, float *img2
     CHECK(cudaMemcpy(dev_img2, img2, sizeof(float)*imgLen*imgLen, cudaMemcpyHostToDevice));
 
     CuGetCrossCor<<<grid,block>>>(dev_corArray,dev_img1,dev_img2,gridNum,srchSize,intrSize,gridSize,imgLen);
+    CuErrorCorrect<<<grid,block>>>(dev_corArray,dev_corArray2,srchSize-intrSize+1,gridNum);
     CuGetVector<<<grid2,block>>>(dev_vecArrayX,dev_vecArrayY,dev_corArray,gridNum,(srchSize-intrSize+1),intrSize);
     
     CHECK(cudaMemcpy(vecArrayX,dev_vecArrayX,sizeof(float)*(gridNum-1)*(gridNum-1),cudaMemcpyDeviceToHost));
@@ -155,3 +192,87 @@ void getPIVMapOnGPU(float *vecArrayX, float *vecArrayY, float *img1, float *img2
     CHECK(cudaFree(dev_img1));
     CHECK(cudaFree(dev_img2));
 }
+
+__global__ void CuTransFunc(cufftComplex *output, float *sqr, float trans_z, float waveLen, int datLen, float dx){
+    // dim3 grid((width+31)/32, (height+31)/32), block(32,32)
+    // CHECH deviceQuery and make sure threads per block are 1024!!!!
+
+	int x = blockIdx.x*blockDim.x + threadIdx.x;
+    int y = blockIdx.y*blockDim.y + threadIdx.y;
+    float tmp;
+    float tmpx, tmpy;
+    float uband = 1.0/waveLen/sqrt(2*trans_z/(float)datLen/dx + 1);
+
+    if( (x < datLen) && (y < datLen) ){
+        tmp = 2.0*3.14159265358979*trans_z/waveLen*sqrt(sqr[x + datLen*y]);
+        output[x + datLen*y].x = cos(tmp);
+        output[x + datLen*y].y = sin(tmp);
+        tmpx = abs(((float)x - (float)datLen/2.0)*waveLen/(float)datLen/dx);
+        tmpy = abs(((float)y - (float)datLen/2.0)*waveLen/(float)datLen/dx);
+        if (tmpx > uband || tmpy > uband){
+            output[x + datLen*y].x = 0.0;
+            output[x + datLen*y].y = 0.0;
+        }
+    }
+}
+
+__global__ void CuTransSqr(float *d_sqr, int datLen, float waveLen, float dx){
+    // dim3 grid((width+31)/32, (height+31)/32), block(32,32)
+    // CHECH deviceQuery and make sure threads per block are 1024!!!!
+
+	int x = blockIdx.x*blockDim.x + threadIdx.x;
+    int y = blockIdx.y*blockDim.y + threadIdx.y;
+    float x_f = (float)x;
+    float y_f = (float)y;
+    float w_f = (float)datLen;
+
+    if( (x < datLen) && (y < datLen) ){
+        d_sqr[x + datLen*y] = 1.0 - ((x_f - w_f/2.0)*waveLen/w_f/dx)*((x_f - w_f/2.0)*waveLen/w_f/dx) - ((y_f - w_f/2.0)*waveLen/w_f/dx)*((y_f - w_f/2.0)*waveLen/w_f/dx);
+    }
+}
+
+void getImgAndPIV(Spinnaker::CameraList camList,const int imgLen, const int gridSize, const int intrSize, const int srchSize, const float zF, const float dz, const float waveLen, const float dx, const int blockSize){
+    // Constant Declaretion
+    const int datLen = imgLen*2;
+    dim3 grid((int)ceil((float)datLen/(float)blockSize),(int)ceil((float)datLen/(float)blockSize)), block(blockSize,blockSize);
+
+    // Gabor Init
+    float *d_sqr;
+    cufftComplex *d_transF, *d_transInt;
+    CHECK(cudaMalloc((void **)&d_sqr, sizeof(float)*datLen*datLen));
+    CHECK(cudaMalloc((void **)&d_transF, sizeof(cufftComplex)*datLen*datLen));
+    CHECK(cudaMalloc((void **)&d_transInt, sizeof(cufftComplex)*datLen*datLen));
+    CuTransSqr<<<grid,block>>>(d_sqr,datLen,waveLen,dx);
+    CuTransFunc<<<grid,block>>>(d_transF,d_sqr,zF,waveLen,datLen,dx);
+    CuTransFunc<<<grid,block>>>(d_transInt,d_sqr,dz,waveLen,datLen,dx);
+    std::cout << "Gabor Init OK" << std::endl;
+
+    // Camera Init
+    Spinnaker::CameraPtr cam1 = camList.GetByIndex(0);
+    Spinnaker::CameraPtr cam2 = camList.GetByIndex(1);
+    cam1->BeginAcquisition();
+    cam2->BeginAcquisition();
+    cam1->TriggerSoftware.Execute();
+    Spinnaker::ImagePtr pimg1 = cam1->GetNextImage();
+    Spinnaker::ImagePtr pimg2 = cam2->GetNextImage();
+    cam1->EndAcquisition();
+    cam2->EndAcquisition();
+    pimg1->Convert(Spinnaker::PixelFormat_Mono8);
+    pimg2->Convert(Spinnaker::PixelFormat_Mono8);
+    pimg1->Save("./outimg1.bmp");
+    pimg1->Save("./outimg2.bmp");
+    cam1->DeInit();
+    cam2->DeInit();
+
+    // Finalize
+    CHECK(cudaFree(d_sqr));
+    CHECK(cudaFree(d_transF));
+    CHECK(cudaFree(d_transInt));
+}
+
+// void getGaborImposed(float *out, char *in, cufftComplex *transF, cufftComplex *transInt, int imgLen, int blockSize=16){
+//     int datLen = imgLen*2;
+//     dim3 grid((int)ceil((float)datLen/(float)blockSize), (int)ceil((float)datLen/(float)blockSize)), block(blockSize,blockSize);
+    
+//     thrust::device_ptr<char> 
+// }
