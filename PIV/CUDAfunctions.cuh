@@ -14,8 +14,8 @@
 #include <cufft.h>
 #include "Spinnaker.h"
 #include "SpinGenApi/SpinnakerGenApi.h"
-// #include <thrust/host_vector.h>
-// #include <thrust/device_vector.h>
+#include <thrust/host_vector.h>
+#include <thrust/device_vector.h>
 
 /** @def
  * CUDA組み込み関数のチェックマクロ。cudaMalloc や cudaMemcpy に。
@@ -249,9 +249,7 @@ void getImgAndPIV(Spinnaker::CameraPtr pCam[2],const int imgLen, const int gridS
 
     // Camera Init
     Spinnaker::CameraPtr cam1 = pCam[0];
-    // Spinnaker::CameraPtr cam1 = camList.GetByIndex(0);
     Spinnaker::CameraPtr cam2 = pCam[1];
-    // Spinnaker::CameraPtr cam2 = camList.GetByIndex(1);
     cam1->BeginAcquisition();
     cam2->BeginAcquisition();
     cam1->TriggerSoftware.Execute();
@@ -263,8 +261,6 @@ void getImgAndPIV(Spinnaker::CameraPtr pCam[2],const int imgLen, const int gridS
     pimg2->Convert(Spinnaker::PixelFormat_Mono8);
     pimg1->Save("./outimg1.png");
     pimg1->Save("./outimg2.png");
-    cam1->DeInit();
-    cam2->DeInit();
 
     // Finalize
     CHECK(cudaFree(d_sqr));
@@ -274,9 +270,34 @@ void getImgAndPIV(Spinnaker::CameraPtr pCam[2],const int imgLen, const int gridS
     std::cout << "OK" << std::endl;
 }
 
-// void getGaborImposed(float *out, char *in, cufftComplex *transF, cufftComplex *transInt, int imgLen, int blockSize=16){
-//     int datLen = imgLen*2;
-//     dim3 grid((int)ceil((float)datLen/(float)blockSize), (int)ceil((float)datLen/(float)blockSize)), block(blockSize,blockSize);
+__global__ void CuCharToNormFloatArr(float *out, char *in, int datLen, float addNum, float Norm){
+    // dim3 grid((width+31)/32, (height+31)/32), block(32,32)
+    // CHECH deviceQuery and make sure threads per block are 1024!!!!
+
+	int x = blockIdx.x*blockDim.x + threadIdx.x;
+    int y = blockIdx.y*blockDim.y + threadIdx.y;
+
+    if( (x < datLen) && (y < datLen) ){
+        out[y*datLen + x] = ((float)in[y*datLen + x] + addNum)/Norm;
+    }
+}
+
+void getGaborImposed(float *out, char *in, cufftComplex *transF, cufftComplex *transInt, int imgLen, int blockSize=16){
+    int datLen = imgLen*2;
+    dim3 grid((int)ceil((float)datLen/(float)blockSize), (int)ceil((float)datLen/(float)blockSize)), block(blockSize,blockSize);
     
-//     thrust::device_ptr<char> 
-// }
+    char *dev_in;
+    CHECK(cudaMalloc((void**)&dev_in,sizeof(char)*imgLen*imgLen));
+    float *dev_img;
+    CHECK(cudaMalloc((void**)&dev_img,sizeof(float)*imgLen*imgLen));
+    CHECK(cudaMemcpy(dev_in, in, sizeof(char)*imgLen*imgLen, cudaMemcpyHostToDevice));
+    CuCharToNormFloatArr<<<grid,block>>>(dev_img,dev_in,imgLen,128.0,255.0);
+    thrust::device_ptr<float> thimg(dev_img);
+    float sumImg = thrust::reduce()
+
+
+
+    CHECK(cudaFree(dev_in));
+
+
+}

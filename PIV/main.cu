@@ -74,6 +74,7 @@ int main(int argc, char** argv){
     const int blockSize = 16; 
 
 
+    // Camera Init
     Spinnaker::SystemPtr system = Spinnaker::System::GetInstance();
     Spinnaker::CameraList camList = system->GetCameras();
     unsigned int numCameras = camList.GetSize();
@@ -82,9 +83,7 @@ int main(int argc, char** argv){
         std::cout << "No Cameras are Connected! Quitting..." << std::endl;
         exit(1);
     }
-
     Spinnaker::CameraPtr pCam[numCameras];
-    // printf("CameraNumber\tModelName\tSerialNumber\n");
     std::cout << "Camera" << "\t" << "ModelName" << "\t\t\t" << "SerialNumber" << std::endl;
     for (int i = 0; i < numCameras; i++){
         pCam[i] = camList.GetByIndex(i);
@@ -100,7 +99,8 @@ int main(int argc, char** argv){
         exit(0);
     }
     // printf("\n");
-    std::cout << "OK" << std::endl;
+    std::cout << "Camera Enum OK" << std::endl;
+    
     cameraSetup(pCam,1024,100,100);
     getImgAndPIV(pCam,imgLen,gridSize,intrSize,srchSize,zFront,dz,wavLen,dx,blockSize);
     
