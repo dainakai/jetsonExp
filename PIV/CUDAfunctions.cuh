@@ -14,8 +14,8 @@
 #include <cufft.h>
 #include "Spinnaker.h"
 #include "SpinGenApi/SpinnakerGenApi.h"
-#include <thrust/host_vector.h>
-#include <thrust/device_vector.h>
+// #include <thrust/host_vector.h>
+// #include <thrust/device_vector.h>
 
 /** @def
  * CUDA組み込み関数のチェックマクロ。cudaMalloc や cudaMemcpy に。
@@ -231,7 +231,7 @@ __global__ void CuTransSqr(float *d_sqr, int datLen, float waveLen, float dx){
     }
 }
 
-void getImgAndPIV(Spinnaker::CameraList camList,const int imgLen, const int gridSize, const int intrSize, const int srchSize, const float zF, const float dz, const float waveLen, const float dx, const int blockSize){
+void getImgAndPIV(Spinnaker::CameraPtr pCam[2],const int imgLen, const int gridSize, const int intrSize, const int srchSize, const float zF, const float dz, const float waveLen, const float dx, const int blockSize){
     // Constant Declaretion
     const int datLen = imgLen*2;
     dim3 grid((int)ceil((float)datLen/(float)blockSize),(int)ceil((float)datLen/(float)blockSize)), block(blockSize,blockSize);
@@ -248,8 +248,10 @@ void getImgAndPIV(Spinnaker::CameraList camList,const int imgLen, const int grid
     std::cout << "Gabor Init OK" << std::endl;
 
     // Camera Init
-    Spinnaker::CameraPtr cam1 = camList.GetByIndex(0);
-    Spinnaker::CameraPtr cam2 = camList.GetByIndex(1);
+    Spinnaker::CameraPtr cam1 = pCam[0];
+    // Spinnaker::CameraPtr cam1 = camList.GetByIndex(0);
+    Spinnaker::CameraPtr cam2 = pCam[1];
+    // Spinnaker::CameraPtr cam2 = camList.GetByIndex(1);
     cam1->BeginAcquisition();
     cam2->BeginAcquisition();
     cam1->TriggerSoftware.Execute();
@@ -259,8 +261,8 @@ void getImgAndPIV(Spinnaker::CameraList camList,const int imgLen, const int grid
     cam2->EndAcquisition();
     pimg1->Convert(Spinnaker::PixelFormat_Mono8);
     pimg2->Convert(Spinnaker::PixelFormat_Mono8);
-    pimg1->Save("./outimg1.bmp");
-    pimg1->Save("./outimg2.bmp");
+    pimg1->Save("./outimg1.png");
+    pimg1->Save("./outimg2.png");
     cam1->DeInit();
     cam2->DeInit();
 
@@ -268,6 +270,8 @@ void getImgAndPIV(Spinnaker::CameraList camList,const int imgLen, const int grid
     CHECK(cudaFree(d_sqr));
     CHECK(cudaFree(d_transF));
     CHECK(cudaFree(d_transInt));
+
+    std::cout << "OK" << std::endl;
 }
 
 // void getGaborImposed(float *out, char *in, cufftComplex *transF, cufftComplex *transInt, int imgLen, int blockSize=16){

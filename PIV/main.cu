@@ -14,7 +14,8 @@
 // #include <gtk/gtk.h>
 
 int main(int argc, char** argv){
-    printf("%s Starting...\n", argv[0]);
+    std::cout << argv[0] << " Starting..." << std::endl;
+    // printf("%s Starting...\n", argv[0]);
 
     // const char* pathImg1 = "./cam1.bmp";
     // const char* pathImg2 = "./cam2.bmp";
@@ -75,10 +76,36 @@ int main(int argc, char** argv){
 
     Spinnaker::SystemPtr system = Spinnaker::System::GetInstance();
     Spinnaker::CameraList camList = system->GetCameras();
-    cameraSetup(camList,1024,600,400);
+    unsigned int numCameras = camList.GetSize();
+    if (numCameras==0){
+        // printf("No Cameras are Connected! Quitting...\n");
+        std::cout << "No Cameras are Connected! Quitting..." << std::endl;
+        exit(1);
+    }
 
+    Spinnaker::CameraPtr pCam[numCameras];
+    // printf("CameraNumber\tModelName\tSerialNumber\n");
+    std::cout << "Camera" << "\t" << "ModelName" << "\t\t\t" << "SerialNumber" << std::endl;
+    for (int i = 0; i < numCameras; i++){
+        pCam[i] = camList.GetByIndex(i);
+        pCam[i]->Init();
+        Spinnaker::GenICam::gcstring modelName = pCam[i]->TLDevice.DeviceModelName.GetValue();
+        Spinnaker::GenICam::gcstring serialNum = pCam[i]->TLDevice.DeviceSerialNumber.GetValue();
+        // printf("%d\t%s\t%s\n",i,modelName,serialNum);
+        std::cout << i << "\t" << modelName << "\t" << serialNum << std::endl;
+    }
+    if (numCameras != 2){
+        // printf("Number of Connected Cameras is not 2. Quitting...\n");
+        std::cout << "Number of Connected Cameras is not 2. Quitting..." << std::endl;
+        exit(0);
+    }
+    // printf("\n");
+    std::cout << "OK" << std::endl;
+    cameraSetup(pCam,1024,100,100);
+    getImgAndPIV(pCam,imgLen,gridSize,intrSize,srchSize,zFront,dz,wavLen,dx,blockSize);
     
-
+    pCam[0]->DeInit();
+    pCam[1]->DeInit();
     system->ReleaseInstance();
 
     // GtkWidget* window;

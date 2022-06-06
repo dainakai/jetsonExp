@@ -10,7 +10,7 @@
 #include <iostream>
 #include "Spinnaker.h"
 #include "SpinGenApi/SpinnakerGenApi.h"
-#include <gtk/gtk.h>
+// #include <gtk/gtk.h>
 #include <string>
 
 /**
@@ -116,34 +116,34 @@ void plotVecFieldOnGnuplot(const int imgLen){
  * @param cam2OffSetX カメラ2のオフセット．事前にSpinViewで調整
  * @return なし
  */
-void cameraSetup(Spinnaker::CameraList camList, int imgLen, int cam2OffSetX, int cam2OffSetY, float exposure=400.0, float expratio=0.5, float gain=0.0){
-    unsigned int numCameras = camList.GetSize();
-    if (numCameras==0){
-        printf("No Cameras are Connected! Quitting...\n");
-        exit(1);
-    }
+void cameraSetup(Spinnaker::CameraPtr pCam[2], int imgLen, int cam2OffSetX, int cam2OffSetY, float exposure=400.0, float expratio=0.5, float gain=0.0){
+    // unsigned int numCameras = camList.GetSize();
+    // if (numCameras==0){
+    //     printf("No Cameras are Connected! Quitting...\n");
+    //     exit(1);
+    // }
 
-    Spinnaker::CameraPtr pCam[numCameras];
-    // printf("CameraNumber\tModelName\tSerialNumber\n");
-    std::cout << "Camera" << "\t" << "ModelName" << "\t\t\t" << "SerialNumber" << std::endl;
-    for (int i = 0; i < numCameras; i++){
-        pCam[i] = camList.GetByIndex(i);
-        pCam[i]->Init();
-        Spinnaker::GenICam::gcstring modelName = pCam[i]->TLDevice.DeviceModelName.GetValue();
-        Spinnaker::GenICam::gcstring serialNum = pCam[i]->TLDevice.DeviceSerialNumber.GetValue();
-        // printf("%d\t%s\t%s\n",i,modelName,serialNum);
-        std::cout << i << "\t" << modelName << "\t" << serialNum << std::endl;
-    }
-    printf("\n");
+    // Spinnaker::CameraPtr pCam[numCameras];
+    // // printf("CameraNumber\tModelName\tSerialNumber\n");
+    // std::cout << "Camera" << "\t" << "ModelName" << "\t\t\t" << "SerialNumber" << std::endl;
+    // for (int i = 0; i < numCameras; i++){
+    //     pCam[i] = camList.GetByIndex(i);
+    //     pCam[i]->Init();
+    //     Spinnaker::GenICam::gcstring modelName = pCam[i]->TLDevice.DeviceModelName.GetValue();
+    //     Spinnaker::GenICam::gcstring serialNum = pCam[i]->TLDevice.DeviceSerialNumber.GetValue();
+    //     // printf("%d\t%s\t%s\n",i,modelName,serialNum);
+    //     std::cout << i << "\t" << modelName << "\t" << serialNum << std::endl;
+    // }
+    // printf("\n");
 
     // Settings common to all cameras
-    for (int i = 0; i < numCameras; i++){
+    for (int i = 0; i < 2; i++){
         pCam[i]->GammaEnable.SetValue(false);
         pCam[i]->AdcBitDepth.SetValue(Spinnaker::AdcBitDepth_Bit12);
         pCam[i]->AcquisitionFrameRateEnable.SetValue(false);
         pCam[i]->PixelFormat.SetValue(Spinnaker::PixelFormat_Mono16);
-        pCam[i]->Width.SetValue(imgLen);
-        pCam[i]->Height.SetValue(imgLen);
+        // pCam[i]->Width.SetValue(imgLen);
+        // pCam[i]->Height.SetValue(imgLen);
         pCam[i]->ExposureAuto.SetValue(Spinnaker::ExposureAutoEnums::ExposureAuto_Off);
         pCam[i]->ExposureMode.SetValue(Spinnaker::ExposureModeEnums::ExposureMode_Timed);
         pCam[i]->GainAuto.SetValue(Spinnaker::GainAutoEnums::GainAuto_Off);
@@ -151,14 +151,13 @@ void cameraSetup(Spinnaker::CameraList camList, int imgLen, int cam2OffSetX, int
         pCam[i]->AcquisitionMode.SetValue(Spinnaker::AcquisitionModeEnums::AcquisitionMode_Continuous);
     }
 
-    if (numCameras != 2){
-        printf("Number of Connected Cameras is not 2. Quitting...\n");
-        exit(0);
-    }
+
 
     // Settings for Camera 1
     pCam[0]->OffsetX.SetValue((int)((2048-imgLen)/2));
     pCam[0]->OffsetY.SetValue((int)((1536-imgLen)/2));
+    pCam[0]->Width.SetValue(imgLen);
+    pCam[0]->Height.SetValue(imgLen);
     pCam[0]->ExposureTime.SetValue(exposure);
     pCam[0]->ReverseX.SetValue(false);
     pCam[0]->ReverseY.SetValue(false);
@@ -174,6 +173,8 @@ void cameraSetup(Spinnaker::CameraList camList, int imgLen, int cam2OffSetX, int
     // Settings for Camera 2
     pCam[1]->OffsetX.SetValue(cam2OffSetX);
     pCam[1]->OffsetY.SetValue(cam2OffSetY);
+    pCam[1]->Width.SetValue(imgLen);
+    pCam[1]->Height.SetValue(imgLen);
     pCam[1]->ExposureTime.SetValue(exposure*expratio);
     pCam[1]->ReverseX.SetValue(false);
     pCam[1]->ReverseY.SetValue(true);
@@ -185,15 +186,15 @@ void cameraSetup(Spinnaker::CameraList camList, int imgLen, int cam2OffSetX, int
     printf("Camera Setup Completed.\n\n");
 }
 
-/**
- * @fn
- * @brief ボタンが押されたときに呼び出されるコールバック関数。
- * @return なし
- */
-void clicked_button(GtkWidget* widget, gpointer data)
-{
-    int pn = GPOINTER_TO_INT(data);
-    pn = 0;
-    // exit(0); // プログラムが終了する
-    // gtk_main_quit(); // プログラムが終了する
-}
+// /**
+//  * @fn
+//  * @brief ボタンが押されたときに呼び出されるコールバック関数。
+//  * @return なし
+//  */
+// void clicked_button(GtkWidget* widget, gpointer data)
+// {
+//     int pn = GPOINTER_TO_INT(data);
+//     pn = 0;
+//     // exit(0); // プログラムが終了する
+//     // gtk_main_quit(); // プログラムが終了する
+// }
