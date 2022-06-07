@@ -100,7 +100,7 @@ int main(int argc, char** argv){
     }
     // printf("\n");
     std::cout << "Camera Enum OK" << std::endl;
-    
+
     cameraSetup(pCam,1024,100,100);
     getImgAndPIV(pCam,imgLen,gridSize,intrSize,srchSize,zFront,dz,wavLen,dx,blockSize);
     
@@ -133,5 +133,6 @@ int main(int argc, char** argv){
     // free(UIntimage2);
     // free(fimg1);
     // free(fimg2);
+    cudaDeviceReset();
     return 0;
 }

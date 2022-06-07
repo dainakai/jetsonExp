@@ -16,6 +16,7 @@
 #include "SpinGenApi/SpinnakerGenApi.h"
 #include <thrust/host_vector.h>
 #include <thrust/device_vector.h>
+#include <hostfunctions.h>
 
 /** @def
  * CUDA組み込み関数のチェックマクロ。cudaMalloc や cudaMemcpy に。
@@ -24,8 +25,8 @@
 {                                                                               \
     const cudaError_t error = call;                                             \
     if(error != cudaSuccess){                                                   \
-        printf("Error: %s:%d, ",__FILE__, __LINE__);                            \
-        printf("code:%d, reason: %s\n", error, cudaGetErrorString(error));      \
+        std::cout << "Error: " << __FILE__ << ":" << __LINE__ << ", ";          \
+        std::cout << "code:" << error << ", reason: " << cudaGetErrorString(error) << std::endl;\
         exit(1);                                                                \
     }                                                                           \
 }
@@ -257,10 +258,38 @@ void getImgAndPIV(Spinnaker::CameraPtr pCam[2],const int imgLen, const int gridS
     Spinnaker::ImagePtr pimg2 = cam2->GetNextImage();
     cam1->EndAcquisition();
     cam2->EndAcquisition();
+    char *charimg1 = (char *)pimg1->GetData();
+    char *charimg2 = (char *)pimg2->GetData();
+    std::cout << (int)charimg1[0] << std::endl;
+
+    // float *floatimp1, *floatimp2;
+    // floatimp1 = (float *)malloc(sizeof(float)*imgLen*imgLen);
+    // floatimp1 = (float *)malloc(sizeof(float)*imgLen*imgLen);
+
+    // char *charimp1, *charimp2;
+    // charimp1 = (char *)malloc(sizeof(char)*imgLen*imgLen);
+    // charimp1 = (char *)malloc(sizeof(char)*imgLen*imgLen);
+
+    // getGaborImposed(floatimp1,charimp1,charimg1,d_transF,d_transInt,imgLen,100);
+    
+    // Original image
     pimg1->Convert(Spinnaker::PixelFormat_Mono8);
     pimg2->Convert(Spinnaker::PixelFormat_Mono8);
     pimg1->Save("./outimg1.png");
     pimg1->Save("./outimg2.png");
+
+    // // PIV
+    // int gridNum = imgLen/gridSize;
+    // float vecArrayX[(gridNum-1)*(gridNum-1)];
+    // float vecArrayY[(gridNum-1)*(gridNum-1)];
+    // float *pvecArrX = (float *)vecArrayX;
+    // float *pvecArrY = (float *)vecArrayY;
+    // getPIVMapOnGPU(pvecArrX,pvecArrY,floatimp1,floatimp2,imgLen,gridSize,intrSize,srchSize,blockSize);
+    // saveVecArray(pvecArrX,pvecArrY,gridSize,gridNum);
+    // plotVecFieldOnGnuplot(imgLen);
+
+    // //Save Imposed Image
+
 
     // Finalize
     CHECK(cudaFree(d_sqr));
@@ -282,22 +311,180 @@ __global__ void CuCharToNormFloatArr(float *out, char *in, int datLen, float add
     }
 }
 
-void getGaborImposed(float *out, char *in, cufftComplex *transF, cufftComplex *transInt, int imgLen, int blockSize=16){
+__global__ void CuNormFloatArrToChar(char *out, float *in, int datLen, int addNum, float Norm){
+    // dim3 grid((width+31)/32, (height+31)/32), block(32,32)
+    // CHECH deviceQuery and make sure threads per block are 1024!!!!
+
+	int x = blockIdx.x*blockDim.x + threadIdx.x;
+    int y = blockIdx.y*blockDim.y + threadIdx.y;
+
+    if( (x < datLen) && (y < datLen) ){
+        out[y*datLen + x] = (int)(in[y*datLen + x]*Norm)-addNum;
+    }
+}
+
+__global__ void CuSetArrayCenterHalf(cufftComplex *out, float *img, int imgLen){
+    // dim3 grid((width+31)/32, (height+31)/32), block(32,32)
+    // CHECH deviceQuery and make sure threads per block are 1024!!!!
+
+	int x = blockIdx.x*blockDim.x + threadIdx.x;
+    int y = blockIdx.y*blockDim.y + threadIdx.y;
+
+    if( (x < imgLen) && (y < imgLen) ){
+        out[(y+imgLen/2)*imgLen*2 + (x+imgLen/2)].x = img[y*imgLen+x]; 
+        out[(y+imgLen/2)*imgLen*2 + (x+imgLen/2)].y = 0.0; 
+    }
+}
+
+__global__ void CuFFTshift(cufftComplex *data, int datLen){
+    // dim3 grid((width+31)/32, (height+31)/32), block(32,32)
+    // CHECH deviceQuery and make sure threads per block are 1024!!!!
+
+	int x = blockIdx.x*blockDim.x + threadIdx.x;
+    int y = blockIdx.y*blockDim.y + threadIdx.y;
+    cufftComplex temp1,temp2;
+    
+    if((x < datLen/2) && (y < datLen/2)){
+        temp1 = data[x + datLen*y];
+        data[x + datLen*y] = data[x + datLen/2 + datLen*(y + datLen/2)];
+        data[x + datLen/2 + datLen*(y + datLen/2)] = temp1;
+    }
+    if((x < datLen/2) && (y >= datLen/2)){
+        temp2 = data[x + datLen*y];
+        data[x + datLen*y] = data[x + datLen/2 + datLen*(y - datLen/2)];
+        data[x + datLen/2 + datLen*(y - datLen/2)] = temp2;
+    }
+}
+
+__global__ void CuComplexMul(cufftComplex *out, cufftComplex *inA, cufftComplex *inB, int datLen){
+    // dim3 grid((width+31)/32, (height+31)/32), block(32,32)
+    // CHECH deviceQuery and make sure threads per block are 1024!!!!
+
+	int x = blockIdx.x*blockDim.x + threadIdx.x;
+    int y = blockIdx.y*blockDim.y + threadIdx.y;
+    cufftComplex tmp1, tmp2;
+
+    if( (x < datLen) && (y < datLen) ){
+        tmp1 = inA[y*datLen + x];
+        tmp2 = inB[y*datLen + x];
+        out[y*datLen + x].x = tmp1.x * tmp2.x - tmp1.y * tmp2.y;
+        out[y*datLen + x].y = tmp1.x * tmp2.y + tmp1.y * tmp2.x;
+    }
+}
+
+__global__ void CuGetAbsFromComp(float *out, cufftComplex *in, int datLen){
+	int x = blockIdx.x*blockDim.x + threadIdx.x;
+    int y = blockIdx.y*blockDim.y + threadIdx.y;
+
+    if( (x < datLen) && (y < datLen) ){
+        cufftComplex tmp = in[y*datLen + x];
+        out[y*datLen + x] = tmp.x * tmp.x - tmp.y * tmp.y; // Need Sqrt() ?
+    }
+}
+
+__global__ void CuUpdateImposed(float *imp, float *tmp, int datLen){
+	int x = blockIdx.x*blockDim.x + threadIdx.x;
+    int y = blockIdx.y*blockDim.y + threadIdx.y;
+
+    if( (x < datLen) && (y < datLen) ){
+        if (tmp[y*datLen+x] < imp[y*datLen+x]){
+            imp[y*datLen+x] = tmp[y*datLen+x];
+        }
+    }
+}
+
+__global__ void CuGetCenterHalf(float *out, float *in, int imgLen){
+	int x = blockIdx.x*blockDim.x + threadIdx.x;
+    int y = blockIdx.y*blockDim.y + threadIdx.y;
+
+    if( (x < imgLen) && (y < imgLen) ){
+        out[y*imgLen + x] = in[(y+imgLen/2)*imgLen*2 + x+imgLen/2];
+    }
+}
+
+__global__ void CuFillArrayComp(cufftComplex* array, float value, int datLen){
+	int x = blockIdx.x*blockDim.x + threadIdx.x;
+    int y = blockIdx.y*blockDim.y + threadIdx.y;
+
+    if( (x < datLen) && (y < datLen) ){
+        array[y*datLen + x].x = value;
+        array[y*datLen + x].y = 0.0;
+    }
+}
+
+__global__ void CuFillArrayFloat(float* array, float value, int datLen){
+	int x = blockIdx.x*blockDim.x + threadIdx.x;
+    int y = blockIdx.y*blockDim.y + threadIdx.y;
+
+    if( (x < datLen) && (y < datLen) ){
+        array[y*datLen + x] = value;
+    }
+}
+
+void getGaborImposed(float *floatout, char *charout, char *in, cufftComplex *transF, cufftComplex *transInt, int imgLen, int loopCount, int blockSize=16){
     int datLen = imgLen*2;
-    dim3 grid((int)ceil((float)datLen/(float)blockSize), (int)ceil((float)datLen/(float)blockSize)), block(blockSize,blockSize);
+    dim3 gridImgLen((int)ceil((float)imgLen/(float)blockSize), (int)ceil((float)imgLen/(float)blockSize)), block(blockSize,blockSize);
+    dim3 gridDatLen((int)ceil((float)datLen/(float)blockSize), (int)ceil((float)datLen/(float)blockSize));
     
     char *dev_in;
     CHECK(cudaMalloc((void**)&dev_in,sizeof(char)*imgLen*imgLen));
     float *dev_img;
     CHECK(cudaMalloc((void**)&dev_img,sizeof(float)*imgLen*imgLen));
     CHECK(cudaMemcpy(dev_in, in, sizeof(char)*imgLen*imgLen, cudaMemcpyHostToDevice));
-    CuCharToNormFloatArr<<<grid,block>>>(dev_img,dev_in,imgLen,128.0,255.0);
+    CuCharToNormFloatArr<<<gridImgLen,block>>>(dev_img,dev_in,imgLen,128.0,255.0);
     thrust::device_ptr<float> thimg(dev_img);
-    float sumImg = thrust::reduce()
+    float meanImg = thrust::reduce(thimg,thimg+imgLen*imgLen, (float)0.0, thrust::plus<float>());
+    meanImg /= (float)(imgLen*imgLen);
 
+    cufftComplex *dev_holo;
+    CHECK(cudaMalloc((void**)&dev_holo,sizeof(cufftComplex)*datLen*datLen));
+    CuFillArrayComp<<<gridDatLen,block>>>(dev_holo,meanImg,datLen);
+    CuSetArrayCenterHalf<<<gridImgLen,block>>>(dev_holo,dev_img,imgLen);
 
+    float *dev_imp;
+    CHECK(cudaMalloc((void**)&dev_imp,sizeof(float)*datLen*datLen));
+    CuFillArrayFloat<<<gridDatLen,block>>>(dev_imp,1.0,datLen);
 
+    cufftHandle plan;
+    cufftPlan2d(&plan, datLen, datLen, CUFFT_C2C);
+
+    cufftExecC2C(plan, dev_holo, dev_holo, CUFFT_FORWARD);
+    CuFFTshift<<<gridDatLen,block>>>(dev_holo, datLen);
+    CuComplexMul<<<gridDatLen,block>>>(dev_holo, dev_holo, transF, datLen);
+
+    cufftComplex *tmp_holo;
+    float *tmp_imp;
+    CHECK(cudaMalloc((void**)&tmp_holo,sizeof(cufftComplex)*datLen*datLen));
+    CHECK(cudaMalloc((void**)&tmp_imp,sizeof(float)*datLen*datLen));
+    
+    for (int itr = 0; itr < loopCount; itr++){
+        CuComplexMul<<<gridDatLen,block>>>(dev_holo,dev_holo,transInt,datLen);
+        CHECK(cudaMemcpy(tmp_holo,dev_holo,sizeof(cufftComplex)*datLen*datLen,cudaMemcpyDeviceToDevice));
+        CuFFTshift<<<gridDatLen,block>>>(tmp_holo,datLen);
+        cufftExecC2C(plan, tmp_holo, tmp_holo, CUFFT_INVERSE);
+        CuGetAbsFromComp<<<gridDatLen,block>>>(tmp_imp,tmp_holo,datLen);
+        CuUpdateImposed<<<gridDatLen,block>>>(dev_imp,tmp_imp,datLen);
+    }
+
+    float *dev_outImp;
+    CHECK(cudaMalloc((void**)&dev_outImp,sizeof(float)*imgLen*imgLen));
+    CuGetCenterHalf<<<gridImgLen,block>>>(dev_outImp,dev_imp,imgLen);
+
+    CHECK(cudaMemcpy(floatout, dev_outImp, sizeof(float)*imgLen*imgLen, cudaMemcpyDeviceToHost));
+
+    char *saveImp;
+    CHECK(cudaMalloc((void**)&saveImp,sizeof(char)*imgLen*imgLen));
+    CuNormFloatArrToChar<<<gridImgLen,block>>>(saveImp,dev_outImp,imgLen,128,255.0);
+
+    CHECK(cudaMemcpy(charout, saveImp, sizeof(char)*imgLen*imgLen, cudaMemcpyDeviceToHost));
+
+    cufftDestroy(plan);
     CHECK(cudaFree(dev_in));
-
-
+    CHECK(cudaFree(dev_img));
+    CHECK(cudaFree(dev_holo));
+    CHECK(cudaFree(dev_imp));
+    CHECK(cudaFree(tmp_holo));
+    CHECK(cudaFree(tmp_imp));
+    CHECK(cudaFree(dev_outImp));
+    CHECK(cudaFree(saveImp));
 }
