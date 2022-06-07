@@ -1,10 +1,11 @@
 #include "CUDAfunctions.cuh"
-#include "hostfunctions.h"
+// #include "hostfunctions.h"
 #include <stdlib.h>
 #include <stdio.h>
 #include <iostream>
 #include <cuda_runtime.h>
 #include <cufft.h>
+#include <string>
 #include "Spinnaker.h"
 #include "SpinGenApi/SpinnakerGenApi.h"
 // #include <opencv2/core.hpp>

@@ -16,7 +16,9 @@
 #include "SpinGenApi/SpinnakerGenApi.h"
 #include <thrust/host_vector.h>
 #include <thrust/device_vector.h>
-#include <hostfunctions.h>
+#include <thrust/device_ptr.h>
+#include <thrust/reduce.h>
+#include "hostfunctions.h"
 
 /** @def
  * CUDA組み込み関数のチェックマクロ。cudaMalloc や cudaMemcpy に。
@@ -258,8 +260,10 @@ void getImgAndPIV(Spinnaker::CameraPtr pCam[2],const int imgLen, const int gridS
     Spinnaker::ImagePtr pimg2 = cam2->GetNextImage();
     cam1->EndAcquisition();
     cam2->EndAcquisition();
-    char *charimg1 = (char *)pimg1->GetData();
-    char *charimg2 = (char *)pimg2->GetData();
+    // unsigned char *charimg1 = (unsigned char *)pimg1->GetData();
+    char16_t *charimg1 = (char16_t *)pimg1->GetData();
+    // unsigned char *charimg2 = (unsigned char *)pimg2->GetData();
+    char16_t *charimg2 = (char16_t *)pimg2->GetData();
     std::cout << (int)charimg1[0] << std::endl;
 
     // float *floatimp1, *floatimp2;
@@ -275,8 +279,8 @@ void getImgAndPIV(Spinnaker::CameraPtr pCam[2],const int imgLen, const int gridS
     // Original image
     pimg1->Convert(Spinnaker::PixelFormat_Mono8);
     pimg2->Convert(Spinnaker::PixelFormat_Mono8);
-    pimg1->Save("./outimg1.png");
-    pimg1->Save("./outimg2.png");
+    pimg1->Save("./outimg1.jpg");
+    pimg1->Save("./outimg2.jpg");
 
     // // PIV
     // int gridNum = imgLen/gridSize;
