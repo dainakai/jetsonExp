@@ -116,7 +116,7 @@ void plotVecFieldOnGnuplot(const int imgLen){
  * @param cam2OffSetX カメラ2のオフセット．事前にSpinViewで調整
  * @return なし
  */
-void cameraSetup(Spinnaker::CameraPtr pCam[2], int imgLen, int cam2OffSetX, int cam2OffSetY, float exposure=400.0, float expratio=0.5, float gain=0.0){
+void cameraSetup(Spinnaker::CameraPtr pCam[2], int imgLen, int cam2OffSetX, int cam2OffSetY, float exposure=400.0, float expratio=0.78, float gain=0.0){
     // unsigned int numCameras = camList.GetSize();
     // if (numCameras==0){
     //     printf("No Cameras are Connected! Quitting...\n");

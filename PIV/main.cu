@@ -67,7 +67,7 @@ int main(int argc, char** argv){
     const int srchSize = imgLen/4;
     const int gridNum = (int)(imgLen/gridSize);
 
-    const float zFront = 1000*100.0;
+    const float zFront = 1000*150.0;
     const float dz = 50.0;
     const float wavLen = 0.532;
     const float dx = 3.45/0.5;
@@ -103,7 +103,10 @@ int main(int argc, char** argv){
     std::cout << "Camera Enum OK" << std::endl;
 
     cameraSetup(pCam,1024,100,100);
-    getImgAndPIV(pCam,imgLen,gridSize,intrSize,srchSize,zFront,dz,wavLen,dx,blockSize);
+
+    while(1){
+        getImgAndPIV(pCam,imgLen,gridSize,intrSize,srchSize,zFront,dz,wavLen,dx,blockSize);
+    }
     
     pCam[0]->DeInit();
     pCam[1]->DeInit();

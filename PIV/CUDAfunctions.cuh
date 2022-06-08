@@ -242,7 +242,8 @@ __global__ void CuCharToNormFloatArr(float *out, char16_t *in, int datLen, float
     int y = blockIdx.y*blockDim.y + threadIdx.y;
 
     if( (x < datLen) && (y < datLen) ){
-        out[y*datLen + x] = ((float)in[y*datLen + x])/Norm;
+        out[y*datLen + x] = (float)((int)in[y*datLen + x])/Norm;
+        // printf("%lf ",out[y*datLen+x]);
     }
 }
 
@@ -255,6 +256,7 @@ __global__ void CuNormFloatArrToChar(unsigned char *out, float *in, int datLen, 
 
     if( (x < datLen) && (y < datLen) ){
         out[y*datLen + x] = (unsigned char)(in[y*datLen + x]*Norm);
+        // printf("%lf ",out[y*datLen+x]);
     }
 }
 
@@ -268,6 +270,7 @@ __global__ void CuSetArrayCenterHalf(cufftComplex *out, float *img, int imgLen){
     if( (x < imgLen) && (y < imgLen) ){
         out[(y+imgLen/2)*imgLen*2 + (x+imgLen/2)].x = img[y*imgLen+x]; 
         out[(y+imgLen/2)*imgLen*2 + (x+imgLen/2)].y = 0.0; 
+        // printf("%lf ",out[(y+imgLen/2)*imgLen*2 + (x+imgLen/2)].x);
     }
 }
 
@@ -313,7 +316,7 @@ __global__ void CuGetAbsFromComp(float *out, cufftComplex *in, int datLen){
 
     if( (x < datLen) && (y < datLen) ){
         cufftComplex tmp = in[y*datLen + x];
-        out[y*datLen + x] = tmp.x * tmp.x - tmp.y * tmp.y; // Need Sqrt() ?
+        out[y*datLen + x] = sqrt(tmp.x * tmp.x + tmp.y * tmp.y); // Need Sqrt() ?
     }
 }
 
@@ -344,6 +347,7 @@ __global__ void CuFillArrayComp(cufftComplex* array, float value, int datLen){
     if( (x < datLen) && (y < datLen) ){
         array[y*datLen + x].x = value;
         array[y*datLen + x].y = 0.0;
+        // printf("%lf ",array[y*datLen+x].x);
     }
 }
 
@@ -353,6 +357,16 @@ __global__ void CuFillArrayFloat(float* array, float value, int datLen){
 
     if( (x < datLen) && (y < datLen) ){
         array[y*datLen + x] = value;
+    }
+}
+
+__global__ void CuInvFFTDiv(cufftComplex* array, float div, int datLen){
+	int x = blockIdx.x*blockDim.x + threadIdx.x;
+    int y = blockIdx.y*blockDim.y + threadIdx.y;
+
+    if( (x < datLen) && (y < datLen) ){
+        array[y*datLen + x].x /= div;
+        array[y*datLen + x].y /= div;
     }
 }
 
@@ -370,6 +384,7 @@ void getGaborImposed(float *floatout, unsigned char *charout, char16_t *in, cuff
     thrust::device_ptr<float> thimg(dev_img);
     float meanImg = thrust::reduce(thimg,thimg+imgLen*imgLen, (float)0.0, thrust::plus<float>());
     meanImg /= (float)(imgLen*imgLen);
+    std::cout << "Image mean: " << meanImg << std::endl;
 
     cufftComplex *dev_holo;
     CHECK(cudaMalloc((void**)&dev_holo,sizeof(cufftComplex)*datLen*datLen));
@@ -397,6 +412,7 @@ void getGaborImposed(float *floatout, unsigned char *charout, char16_t *in, cuff
         CHECK(cudaMemcpy(tmp_holo,dev_holo,sizeof(cufftComplex)*datLen*datLen,cudaMemcpyDeviceToDevice));
         CuFFTshift<<<gridDatLen,block>>>(tmp_holo,datLen);
         cufftExecC2C(plan, tmp_holo, tmp_holo, CUFFT_INVERSE);
+        CuInvFFTDiv<<<gridDatLen,block>>>(tmp_holo,(float)(datLen*datLen),datLen);
         CuGetAbsFromComp<<<gridDatLen,block>>>(tmp_imp,tmp_holo,datLen);
         CuUpdateImposed<<<gridDatLen,block>>>(dev_imp,tmp_imp,datLen);
     }
@@ -412,6 +428,11 @@ void getGaborImposed(float *floatout, unsigned char *charout, char16_t *in, cuff
     CuNormFloatArrToChar<<<gridImgLen,block>>>(saveImp,dev_outImp,imgLen,255.0);
 
     CHECK(cudaMemcpy(charout, saveImp, sizeof(unsigned char)*imgLen*imgLen, cudaMemcpyDeviceToHost));
+
+    std::cout << (float)floatout[0] << std::endl;
+    std::cout << (float)floatout[10] << std::endl;
+    std::cout << (float)floatout[100] << std::endl;
+    std::cout << (float)floatout[1000] << std::endl;
 
     cufftDestroy(plan);
     CHECK(cudaFree(dev_in));
@@ -464,23 +485,26 @@ void getImgAndPIV(Spinnaker::CameraPtr pCam[2],const int imgLen, const int gridS
     charimp1 = (unsigned char *)malloc(sizeof(unsigned char)*imgLen*imgLen);
     charimp2 = (unsigned char *)malloc(sizeof(unsigned char)*imgLen*imgLen);
 
-    getGaborImposed(floatimp1,charimp1,charimg1,d_transF,d_transInt,imgLen,100);
-    getGaborImposed(floatimp2,charimp2,charimg2,d_transF,d_transInt,imgLen,100);
+
 
     //Save Imposed Image
     Spinnaker::ImagePtr saveImg1 = Spinnaker::Image::Create(imgLen,imgLen,0,0,Spinnaker::PixelFormatEnums::PixelFormat_Mono8,charimp1);
+    getGaborImposed(floatimp1,charimp1,charimg1,d_transF,d_transInt,imgLen,500);
     saveImg1->Convert(Spinnaker::PixelFormat_Mono8);
     saveImg1->Save("./imposed1.jpg");
     
     Spinnaker::ImagePtr saveImg2 = Spinnaker::Image::Create(imgLen,imgLen,0,0,Spinnaker::PixelFormatEnums::PixelFormat_Mono8,charimp2);
+    getGaborImposed(floatimp2,charimp2,charimg2,d_transF,d_transInt,imgLen,500);
     saveImg2->Convert(Spinnaker::PixelFormat_Mono8);
-    saveImg2->Save("./imposed1.jpg");
+    saveImg2->Save("./imposed2.jpg");
+
+    std::cout << "getGaborImposed OK" << std::endl;
 
     // Original image
-    // pimg1->Convert(Spinnaker::PixelFormat_Mono8);
-    // pimg2->Convert(Spinnaker::PixelFormat_Mono8);
-    // pimg1->Save("./outimg1.jpg");
-    // pimg1->Save("./outimg2.jpg");
+    pimg1->Convert(Spinnaker::PixelFormat_Mono8);
+    pimg2->Convert(Spinnaker::PixelFormat_Mono8);
+    pimg1->Save("./outimg1.jpg");
+    pimg1->Save("./outimg2.jpg");
 
     // PIV
     int gridNum = imgLen/gridSize;
@@ -501,5 +525,5 @@ void getImgAndPIV(Spinnaker::CameraPtr pCam[2],const int imgLen, const int gridS
     CHECK(cudaFree(d_transF));
     CHECK(cudaFree(d_transInt));
 
-    std::cout << "OK" << std::endl;
+    // std::cout << "OK" << std::endl;
 }
