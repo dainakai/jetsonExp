@@ -124,31 +124,66 @@ __global__ void CuErrorCorrect(float *corArrayIn, float *corArrayOut, int corArr
         int gridIdxx = x/corArrSize;
         int gridIdxy = y/corArrSize;
 
-        // Four Corners
-        if ((gridIdxx==0 || gridIdxx==(gridNum-2))&&(gridIdxy==0 || gridIdxy==(gridNum-2))){
-            corArrayOut[y*corArrSize*(gridNum-1)+x] = corArrayIn[y*corArrSize*(gridNum-1)+x];
-        }else if (gridIdxx==0 || gridIdxx==(gridNum-2)){
-            corArrayOut[y*corArrSize*(gridNum-1)+x] = 0.0;
-            corArrayOut[y*corArrSize*(gridNum-1)+x] += corArrayIn[y*corArrSize*(gridNum-1)+x-corArrSize]/3.0;
-            corArrayOut[y*corArrSize*(gridNum-1)+x] += corArrayIn[y*corArrSize*(gridNum-1)+x+corArrSize]/3.0;
-            corArrayOut[y*corArrSize*(gridNum-1)+x] += corArrayIn[y*corArrSize*(gridNum-1)+x]/3.0;
-        }else if (gridIdxy==0 || gridIdxy==(gridNum-2)){
-            corArrayOut[y*corArrSize*(gridNum-1)+x] = 0.0;
-            corArrayOut[y*corArrSize*(gridNum-1)+x] += corArrayIn[y*corArrSize*(gridNum-1)+x]/3.0;
-            corArrayOut[y*corArrSize*(gridNum-1)+x] += corArrayIn[y*corArrSize*(gridNum-1+1)+x]/3.0;
-            corArrayOut[y*corArrSize*(gridNum-1)+x] += corArrayIn[y*corArrSize*(gridNum-1-1)+x]/3.0;
-        }else{
-            corArrayOut[y*corArrSize*(gridNum-1)+x] = 0.0;
-            corArrayOut[y*corArrSize*(gridNum-1)+x] += corArrayIn[y*corArrSize*(gridNum-1)+x]/9.0;
-            corArrayOut[y*corArrSize*(gridNum-1)+x] += corArrayIn[y*corArrSize*(gridNum-1-1)+x]/9.0;
-            corArrayOut[y*corArrSize*(gridNum-1)+x] += corArrayIn[y*corArrSize*(gridNum-1+1)+x]/9.0;
-            corArrayOut[y*corArrSize*(gridNum-1)+x] += corArrayIn[y*corArrSize*(gridNum-1)+x-corArrSize]/9.0;
-            corArrayOut[y*corArrSize*(gridNum-1)+x] += corArrayIn[y*corArrSize*(gridNum-1)+x+corArrSize]/9.0;
-            corArrayOut[y*corArrSize*(gridNum-1)+x] += corArrayIn[y*corArrSize*(gridNum-1-1)+x-corArrSize]/9.0;
-            corArrayOut[y*corArrSize*(gridNum-1)+x] += corArrayIn[y*corArrSize*(gridNum-1-1)+x+corArrSize]/9.0;
-            corArrayOut[y*corArrSize*(gridNum-1)+x] += corArrayIn[y*corArrSize*(gridNum-1+1)+x-corArrSize]/9.0;
-            corArrayOut[y*corArrSize*(gridNum-1)+x] += corArrayIn[y*corArrSize*(gridNum-1+1)+x+corArrSize]/9.0;
+        float tmp[3][3];
+        for (int i = 0; i < 3; i++){
+            for (int j = 0; j < 3; j++){
+                tmp[i][j] = 1.0;
+            }
         }
+        
+        if (gridIdxx==0){
+            tmp[0][0]=0.0;
+            tmp[1][0]=0.0;
+            tmp[2][0]=0.0;
+        }else if (gridIdxx==(gridNum-2)){
+            tmp[0][2]=0.0;
+            tmp[1][2]=0.0;
+            tmp[2][2]=0.0;
+        }else if (gridIdxy==0){
+            tmp[0][0]=0.0;
+            tmp[0][1]=0.0;
+            tmp[0][2]=0.0;
+        }else if (gridIdxy==(gridNum-2)){
+            tmp[2][0]=0.0;
+            tmp[2][1]=0.0;
+            tmp[2][2]=0.0;
+        }
+
+        corArrayOut[y*corArrSize*(gridNum-1)+x] = 0.0;
+
+        for (int i = 0; i < 3; i++){
+            for (int j = 0; j < 3; j++){
+                if (tmp[i][j]==1.0){
+                    corArrayOut[y*corArrSize*(gridNum-1)+x]+=corArrayIn[y*corArrSize*(gridNum-1+(i-1))+x+(j-1)*corArrSize];
+                }
+            }
+        }
+
+        // Four Corners
+        // if ((gridIdxx==0 || gridIdxx==(gridNum-2))&&(gridIdxy==0 || gridIdxy==(gridNum-2))){
+        //     corArrayOut[y*corArrSize*(gridNum-1)+x] = corArrayIn[y*corArrSize*(gridNum-1)+x];
+        // }else if (gridIdxx==0 || gridIdxx==(gridNum-2)){
+        //     corArrayOut[y*corArrSize*(gridNum-1)+x] = 0.0;
+        //     corArrayOut[y*corArrSize*(gridNum-1)+x] += corArrayIn[y*corArrSize*(gridNum-1)+x-corArrSize]/3.0;
+        //     corArrayOut[y*corArrSize*(gridNum-1)+x] += corArrayIn[y*corArrSize*(gridNum-1)+x+corArrSize]/3.0;
+        //     corArrayOut[y*corArrSize*(gridNum-1)+x] += corArrayIn[y*corArrSize*(gridNum-1)+x]/3.0;
+        // }else if (gridIdxy==0 || gridIdxy==(gridNum-2)){
+        //     corArrayOut[y*corArrSize*(gridNum-1)+x] = 0.0;
+        //     corArrayOut[y*corArrSize*(gridNum-1)+x] += corArrayIn[y*corArrSize*(gridNum-1)+x]/3.0;
+        //     corArrayOut[y*corArrSize*(gridNum-1)+x] += corArrayIn[y*corArrSize*(gridNum-1+1)+x]/3.0;
+        //     corArrayOut[y*corArrSize*(gridNum-1)+x] += corArrayIn[y*corArrSize*(gridNum-1-1)+x]/3.0;
+        // }else{
+        //     corArrayOut[y*corArrSize*(gridNum-1)+x] = 0.0;
+        //     corArrayOut[y*corArrSize*(gridNum-1)+x] += corArrayIn[y*corArrSize*(gridNum-1)+x]/9.0;
+        //     corArrayOut[y*corArrSize*(gridNum-1)+x] += corArrayIn[y*corArrSize*(gridNum-1-1)+x]/9.0;
+        //     corArrayOut[y*corArrSize*(gridNum-1)+x] += corArrayIn[y*corArrSize*(gridNum-1+1)+x]/9.0;
+        //     corArrayOut[y*corArrSize*(gridNum-1)+x] += corArrayIn[y*corArrSize*(gridNum-1)+x-corArrSize]/9.0;
+        //     corArrayOut[y*corArrSize*(gridNum-1)+x] += corArrayIn[y*corArrSize*(gridNum-1)+x+corArrSize]/9.0;
+        //     corArrayOut[y*corArrSize*(gridNum-1)+x] += corArrayIn[y*corArrSize*(gridNum-1-1)+x-corArrSize]/9.0;
+        //     corArrayOut[y*corArrSize*(gridNum-1)+x] += corArrayIn[y*corArrSize*(gridNum-1-1)+x+corArrSize]/9.0;
+        //     corArrayOut[y*corArrSize*(gridNum-1)+x] += corArrayIn[y*corArrSize*(gridNum-1+1)+x-corArrSize]/9.0;
+        //     corArrayOut[y*corArrSize*(gridNum-1)+x] += corArrayIn[y*corArrSize*(gridNum-1+1)+x+corArrSize]/9.0;
+        // }
     }
 }
 
