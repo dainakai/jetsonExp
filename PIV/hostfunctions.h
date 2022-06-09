@@ -186,15 +186,19 @@ void cameraSetup(Spinnaker::CameraPtr pCam[2], int imgLen, int cam2OffSetX, int 
     printf("Camera Setup Completed.\n\n");
 }
 
-// /**
-//  * @fn
-//  * @brief ボタンが押されたときに呼び出されるコールバック関数。
-//  * @return なし
-//  */
-// void clicked_button(GtkWidget* widget, gpointer data)
-// {
-//     int pn = GPOINTER_TO_INT(data);
-//     pn = 0;
-//     // exit(0); // プログラムが終了する
-//     // gtk_main_quit(); // プログラムが終了する
-// }
+void readCoef(char *path, float a[12]){
+    FILE *fp;
+    fp = fopen(path,"r");
+    if(fp == NULL){
+        printf("%s seems not to exist! Quitting...\n",path);
+        exit(1);
+    }
+    for (int i = 0; i < 12; i++)
+    {
+        char tmp[100];
+        fgets(tmp,100,fp);
+        a[i] = atof(tmp);
+    }
+    
+    fclose(fp);
+}

@@ -4,7 +4,6 @@
 
 using StatsBase
 using DelimitedFiles
-using FileIO
 
 """
 修正コレスキー分解
