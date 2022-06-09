@@ -8,6 +8,7 @@
 #include <string>
 #include "Spinnaker.h"
 #include "SpinGenApi/SpinnakerGenApi.h"
+#include <unistd.h>
 // #include <opencv2/core.hpp>
 // #include <opencv2/imgcodecs.hpp>
 // #include <opencv2/highgui.hpp>
@@ -61,13 +62,13 @@ int main(int argc, char** argv){
     const float camExposure = 400.0;
     const float camGain = 0.0;
     
-    const int imgLen = 1024;
+    const int imgLen = 512;
     const int intrSize = imgLen/8;
     const int gridSize = imgLen/8;
     const int srchSize = imgLen/4;
     const int gridNum = (int)(imgLen/gridSize);
 
-    const float zFront = 1000*150.0;
+    const float zFront = 1000*60.0;
     const float dz = 50.0;
     const float wavLen = 0.532;
     const float dx = 3.45/0.5;
@@ -102,10 +103,11 @@ int main(int argc, char** argv){
     // printf("\n");
     std::cout << "Camera Enum OK" << std::endl;
 
-    cameraSetup(pCam,1024,100,100);
+    cameraSetup(pCam,imgLen,560,506);
 
     while(1){
         getImgAndPIV(pCam,imgLen,gridSize,intrSize,srchSize,zFront,dz,wavLen,dx,blockSize);
+        sleep(0.1);
     }
     
     pCam[0]->DeInit();

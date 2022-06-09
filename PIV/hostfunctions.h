@@ -94,7 +94,7 @@ void plotVecFieldOnGnuplot(const int imgLen){
 	fprintf(gp,"set output '%s'\n",outputPath);
 	fprintf(gp,"set size ratio 1\n");
     fprintf(gp,"set xrange[0:%d]\n",imgLen);
-    fprintf(gp,"set yrange[0:%d] reverse\n",imgLen);
+    fprintf(gp,"set yrange[%d:0]\n",imgLen);
 	fprintf(gp,"set palette rgb 33,13,10\n");
 
   // fprintf(gp,"set yrange reverse\n");
@@ -154,12 +154,12 @@ void cameraSetup(Spinnaker::CameraPtr pCam[2], int imgLen, int cam2OffSetX, int 
 
 
     // Settings for Camera 1
-    pCam[0]->OffsetX.SetValue((int)((2048-imgLen)/2));
-    pCam[0]->OffsetY.SetValue((int)((1536-imgLen)/2));
     pCam[0]->Width.SetValue(imgLen);
     pCam[0]->Height.SetValue(imgLen);
     pCam[0]->ExposureTime.SetValue(exposure);
-    pCam[0]->ReverseX.SetValue(false);
+    pCam[0]->OffsetX.SetValue((int)((2048-imgLen)/2));
+    pCam[0]->OffsetY.SetValue((int)((1536-imgLen)/2));
+    pCam[0]->ReverseX.SetValue(true);
     pCam[0]->ReverseY.SetValue(false);
     pCam[0]->TriggerMode.SetValue(Spinnaker::TriggerModeEnums::TriggerMode_On);
     pCam[0]->TriggerSource.SetValue(Spinnaker::TriggerSourceEnums::TriggerSource_Software);
@@ -171,13 +171,13 @@ void cameraSetup(Spinnaker::CameraPtr pCam[2], int imgLen, int cam2OffSetX, int 
     pCam[0]->TriggerOverlap.SetValue(Spinnaker::TriggerOverlapEnums::TriggerOverlap_Off);
 
     // Settings for Camera 2
-    pCam[1]->OffsetX.SetValue(cam2OffSetX);
-    pCam[1]->OffsetY.SetValue(cam2OffSetY);
     pCam[1]->Width.SetValue(imgLen);
     pCam[1]->Height.SetValue(imgLen);
+    pCam[1]->OffsetX.SetValue(cam2OffSetX);
+    pCam[1]->OffsetY.SetValue(cam2OffSetY);
     pCam[1]->ExposureTime.SetValue(exposure*expratio);
     pCam[1]->ReverseX.SetValue(false);
-    pCam[1]->ReverseY.SetValue(true);
+    pCam[1]->ReverseY.SetValue(false);
     pCam[1]->TriggerMode.SetValue(Spinnaker::TriggerModeEnums::TriggerMode_On);
     pCam[1]->TriggerSource.SetValue(Spinnaker::TriggerSourceEnums::TriggerSource_Line3);
     pCam[1]->TriggerSelector.SetValue(Spinnaker::TriggerSelectorEnums::TriggerSelector_FrameStart);

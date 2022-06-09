@@ -452,12 +452,14 @@ void getImgAndPIV(Spinnaker::CameraPtr pCam[2],const int imgLen, const int gridS
 
     // Gabor Init
     float *d_sqr;
-    cufftComplex *d_transF, *d_transInt;
+    cufftComplex *d_transF, *d_transF2, *d_transInt;
     CHECK(cudaMalloc((void **)&d_sqr, sizeof(float)*datLen*datLen));
     CHECK(cudaMalloc((void **)&d_transF, sizeof(cufftComplex)*datLen*datLen));
+    CHECK(cudaMalloc((void **)&d_transF2, sizeof(cufftComplex)*datLen*datLen));
     CHECK(cudaMalloc((void **)&d_transInt, sizeof(cufftComplex)*datLen*datLen));
     CuTransSqr<<<grid,block>>>(d_sqr,datLen,waveLen,dx);
     CuTransFunc<<<grid,block>>>(d_transF,d_sqr,zF,waveLen,datLen,dx);
+    CuTransFunc<<<grid,block>>>(d_transF2,d_sqr,zF*2.0,waveLen,datLen,dx);
     CuTransFunc<<<grid,block>>>(d_transInt,d_sqr,dz,waveLen,datLen,dx);
     std::cout << "Gabor Init OK" << std::endl;
 
@@ -489,11 +491,11 @@ void getImgAndPIV(Spinnaker::CameraPtr pCam[2],const int imgLen, const int gridS
 
     //Save Imposed Image
     Spinnaker::ImagePtr saveImg1 = Spinnaker::Image::Create(imgLen,imgLen,0,0,Spinnaker::PixelFormatEnums::PixelFormat_Mono8,charimp1);
-    getGaborImposed(floatimp1,charimp1,charimg1,d_transF,d_transInt,imgLen,500);
+    getGaborImposed(floatimp1,charimp1,charimg1,d_transF2,d_transInt,imgLen,10);
     saveImg1->Convert(Spinnaker::PixelFormat_Mono8);
     
     Spinnaker::ImagePtr saveImg2 = Spinnaker::Image::Create(imgLen,imgLen,0,0,Spinnaker::PixelFormatEnums::PixelFormat_Mono8,charimp2);
-    getGaborImposed(floatimp2,charimp2,charimg2,d_transF,d_transInt,imgLen,500);
+    getGaborImposed(floatimp2,charimp2,charimg2,d_transF,d_transInt,imgLen,10);
     saveImg2->Convert(Spinnaker::PixelFormat_Mono8);
 
     saveImg1->Save("./imposed1.jpg");
@@ -505,7 +507,7 @@ void getImgAndPIV(Spinnaker::CameraPtr pCam[2],const int imgLen, const int gridS
     pimg1->Convert(Spinnaker::PixelFormat_Mono8);
     pimg2->Convert(Spinnaker::PixelFormat_Mono8);
     pimg1->Save("./outimg1.jpg");
-    pimg1->Save("./outimg2.jpg");
+    pimg2->Save("./outimg2.jpg");
 
     // PIV
     int gridNum = imgLen/gridSize;
@@ -524,6 +526,7 @@ void getImgAndPIV(Spinnaker::CameraPtr pCam[2],const int imgLen, const int gridS
     free(charimp2);
     CHECK(cudaFree(d_sqr));
     CHECK(cudaFree(d_transF));
+    CHECK(cudaFree(d_transF2));
     CHECK(cudaFree(d_transInt));
 
     // std::cout << "OK" << std::endl;
