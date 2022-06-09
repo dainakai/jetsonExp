@@ -94,7 +94,7 @@ void plotVecFieldOnGnuplot(const int imgLen){
 	fprintf(gp,"set output '%s'\n",outputPath);
 	fprintf(gp,"set size ratio 1\n");
     fprintf(gp,"set xrange[0:%d]\n",imgLen);
-    fprintf(gp,"set yrange[0:%d]\n",imgLen);
+    fprintf(gp,"set yrange[0:%d] reverse\n",imgLen);
 	fprintf(gp,"set palette rgb 33,13,10\n");
 
   // fprintf(gp,"set yrange reverse\n");
