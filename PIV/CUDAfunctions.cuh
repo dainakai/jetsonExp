@@ -18,6 +18,10 @@
 #include <thrust/device_vector.h>
 #include <thrust/device_ptr.h>
 #include <thrust/reduce.h>
+#include <opencv2/core.hpp>
+#include <opencv2/imgcodecs.hpp>
+#include <opencv2/highgui.hpp>
+#include <opencv2/core/types_c.h>
 #include "hostfunctions.h"
 
 /** @def
@@ -543,6 +547,16 @@ void getImgAndPIV(Spinnaker::CameraPtr pCam[2],const int imgLen, const int gridS
     pimg2->Convert(Spinnaker::PixelFormat_Mono8);
     pimg1->Save("./outimg1.jpg");
     pimg2->Save("./outimg2.jpg");
+
+    // Imshow visualization
+    cv::Mat imp1 = cv::Mat(imgLen,imgLen,CV_8U,charimp1);
+    cv::Mat imp2 = cv::Mat(imgLen,imgLen,CV_8U,charimp2);
+    cv::namedWindow("Cam1",cv::WINDOW_AUTOSIZE);
+    cv::namedWindow("Cam2",cv::WINDOW_AUTOSIZE);
+    cv::imshow("Cam1",imp1);
+    cv::imshow("Cam2",imp2);
+    int key = cv::waitKey(1);
+    if (key>=0) exit(0);
 
     // PIV
     int gridNum = imgLen/gridSize;

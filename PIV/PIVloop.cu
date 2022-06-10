@@ -9,10 +9,10 @@
 #include "Spinnaker.h"
 #include "SpinGenApi/SpinnakerGenApi.h"
 #include <unistd.h>
-// #include <opencv2/core.hpp>
-// #include <opencv2/imgcodecs.hpp>
-// #include <opencv2/highgui.hpp>
-// #include <opencv2/core/types_c.h>
+#include <opencv2/core.hpp>
+#include <opencv2/imgcodecs.hpp>
+#include <opencv2/highgui.hpp>
+#include <opencv2/core/types_c.h>
 // #include <gtk/gtk.h>
 
 int main(int argc, char** argv){
