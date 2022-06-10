@@ -59,7 +59,7 @@ int main(int argc, char** argv){
     // plotVecFieldOnGnuplot(imgLen);
     
     // Parameters
-    const float camExposure = 600.0;
+    const float camExposure = 700.0;
     const float camExpRatio = 0.78;
 
     const int OffsetX = atoi(argv[1]);
