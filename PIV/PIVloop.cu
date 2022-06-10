@@ -59,8 +59,13 @@ int main(int argc, char** argv){
     // plotVecFieldOnGnuplot(imgLen);
     
     // Parameters
-    const float camExposure = 400.0;
-    const float camGain = 0.0;
+    const float camExposure = 600.0;
+    const float camExpRatio = 0.78;
+
+    const int OffsetX = atoi(argv[1]);
+    // const int OffsetX = 584;
+    const int OffsetY = atoi(argv[2]);
+    // const int OffsetY = 506;
     
     const int imgLen = 512;
     const int intrSize = imgLen/8;
@@ -103,7 +108,7 @@ int main(int argc, char** argv){
     // printf("\n");
     std::cout << "Camera Enum OK" << std::endl;
 
-    cameraSetup(pCam,imgLen,560,506);
+    cameraSetup(pCam,imgLen,OffsetX,OffsetY,camExposure,camExpRatio);
 
     while(1){
         getImgAndPIV(pCam,imgLen,gridSize,intrSize,srchSize,zFront,dz,wavLen,dx,blockSize);
