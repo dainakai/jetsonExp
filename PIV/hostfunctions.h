@@ -83,7 +83,7 @@ void plotVecFieldOnGnuplot(const int imgLen){
     const char* xxlabel = "{/Times-New-Roman:Italic=20 x} [pixel]";
     const char* yylabel = "{/Times-New-Roman:Italic=20 y} [pixel]";
 
-    const int vecLenSclr = 20;
+    const int vecLenSclr = 10;
     
     if ((gp = popen("gnuplot", "w")) == NULL) {
 	    printf("gnuplot is not available! Quitting...!\n");

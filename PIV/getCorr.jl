@@ -132,8 +132,9 @@ end
 
 1枚目の画像で設定する `gridx` `gridy` から2枚目の画像の `targetX` `targetY` を目的に変換して得た `procX` `procY` を計算し、`targetX` `targetY` と `procX` `procY` の差を計算したベクトル `errorVec` を返します。ヤコビアン取得のため `gridx` `gridy` も同時に返します。
 """
-function getErrorVec(vecMap, coefa, gridSize = 128, imgSize = 1024)
-    n = div(imgSize,gridSize)-1
+function getErrorVec(vecMap, coefa, imgSize)
+    gridSize = div(imgSize,8)
+    n = 7
     gridx = collect(gridSize+0.5:gridSize:imgSize)
     gridy = collect(gridSize+0.5:gridSize:imgSize)
     targetX = Array{Float64}(undef,n*n)
@@ -191,7 +192,7 @@ end
 
 function main()
     n = 7
-    imgLen = 1024
+    imgLen = 512
     gridSize = div(imgLen,8)
     array = readdlm("./vecArray.dat")
     vecArray = Array{Float32}(undef,n,n,2)
@@ -209,7 +210,7 @@ function main()
 
     while itr <= 10
         println("Iteration: ",itr)
-        errorVec= getErrorVec(vecArray,coefa)
+        errorVec= getErrorVec(vecArray,coefa,imgLen)
         # display(errorVec)
         println("Error vec mean norm: ",sqrt(mean(errorVec.*errorVec)))
         # vecxObservable[],vecyObservable[],strObservable[] = errorVecReshape(errorVec,n)
@@ -221,6 +222,7 @@ function main()
         itr += 1
     end
     display(coefa)
+    println("")
     writedlm("./coefa.dat",coefa)
     
     # img3 = getNewImage(img2, coefa)
