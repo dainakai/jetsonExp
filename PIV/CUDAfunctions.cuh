@@ -162,32 +162,6 @@ __global__ void CuErrorCorrect(float *corArrayIn, float *corArrayOut, int corArr
                 }
             }
         }
-
-        // Four Corners
-        // if ((gridIdxx==0 || gridIdxx==(gridNum-2))&&(gridIdxy==0 || gridIdxy==(gridNum-2))){
-        //     corArrayOut[y*corArrSize*(gridNum-1)+x] = corArrayIn[y*corArrSize*(gridNum-1)+x];
-        // }else if (gridIdxx==0 || gridIdxx==(gridNum-2)){
-        //     corArrayOut[y*corArrSize*(gridNum-1)+x] = 0.0;
-        //     corArrayOut[y*corArrSize*(gridNum-1)+x] += corArrayIn[y*corArrSize*(gridNum-1)+x-corArrSize]/3.0;
-        //     corArrayOut[y*corArrSize*(gridNum-1)+x] += corArrayIn[y*corArrSize*(gridNum-1)+x+corArrSize]/3.0;
-        //     corArrayOut[y*corArrSize*(gridNum-1)+x] += corArrayIn[y*corArrSize*(gridNum-1)+x]/3.0;
-        // }else if (gridIdxy==0 || gridIdxy==(gridNum-2)){
-        //     corArrayOut[y*corArrSize*(gridNum-1)+x] = 0.0;
-        //     corArrayOut[y*corArrSize*(gridNum-1)+x] += corArrayIn[y*corArrSize*(gridNum-1)+x]/3.0;
-        //     corArrayOut[y*corArrSize*(gridNum-1)+x] += corArrayIn[y*corArrSize*(gridNum-1+1)+x]/3.0;
-        //     corArrayOut[y*corArrSize*(gridNum-1)+x] += corArrayIn[y*corArrSize*(gridNum-1-1)+x]/3.0;
-        // }else{
-        //     corArrayOut[y*corArrSize*(gridNum-1)+x] = 0.0;
-        //     corArrayOut[y*corArrSize*(gridNum-1)+x] += corArrayIn[y*corArrSize*(gridNum-1)+x]/9.0;
-        //     corArrayOut[y*corArrSize*(gridNum-1)+x] += corArrayIn[y*corArrSize*(gridNum-1-1)+x]/9.0;
-        //     corArrayOut[y*corArrSize*(gridNum-1)+x] += corArrayIn[y*corArrSize*(gridNum-1+1)+x]/9.0;
-        //     corArrayOut[y*corArrSize*(gridNum-1)+x] += corArrayIn[y*corArrSize*(gridNum-1)+x-corArrSize]/9.0;
-        //     corArrayOut[y*corArrSize*(gridNum-1)+x] += corArrayIn[y*corArrSize*(gridNum-1)+x+corArrSize]/9.0;
-        //     corArrayOut[y*corArrSize*(gridNum-1)+x] += corArrayIn[y*corArrSize*(gridNum-1-1)+x-corArrSize]/9.0;
-        //     corArrayOut[y*corArrSize*(gridNum-1)+x] += corArrayIn[y*corArrSize*(gridNum-1-1)+x+corArrSize]/9.0;
-        //     corArrayOut[y*corArrSize*(gridNum-1)+x] += corArrayIn[y*corArrSize*(gridNum-1+1)+x-corArrSize]/9.0;
-        //     corArrayOut[y*corArrSize*(gridNum-1)+x] += corArrayIn[y*corArrSize*(gridNum-1+1)+x+corArrSize]/9.0;
-        // }
     }
 }
 
@@ -691,4 +665,199 @@ void getImgAndBundleAdjCheck(Spinnaker::CameraPtr pCam[2],const int imgLen, cons
     CHECK(cudaFree(d_transF));
     CHECK(cudaFree(d_transF2));
     CHECK(cudaFree(d_transInt));
+}
+
+__global__ void CuFloatSqrt(float *dst, cufftComplex *src, int datLen){
+	int x = blockIdx.x*blockDim.x + threadIdx.x;
+    int y = blockIdx.y*blockDim.y + threadIdx.y;
+
+    if( (x < datLen) && (y < datLen) ){
+        dst[y*datLen + x] = sqrt(src[y*datLen+x].x);
+    }
+}
+
+__global__ void CuFillCompArrayByFloatArray(cufftComplex *dst, float *src, int datLen){
+	int x = blockIdx.x*blockDim.x + threadIdx.x;
+    int y = blockIdx.y*blockDim.y + threadIdx.y;
+
+    if( (x < datLen) && (y < datLen) ){
+        dst[y*datLen + x].x = src[y*datLen+x];
+        dst[y*datLen + x].y = 0.0;
+    }
+}
+
+__global__ void CuGetCompAngle(float *out, cufftComplex *in, int datLen){
+	int x = blockIdx.x*blockDim.x + threadIdx.x;
+    int y = blockIdx.y*blockDim.y + threadIdx.y;
+
+    if( (x < datLen) && (y < datLen) ){
+        out[y*datLen + x] = atan2f(in[y*datLen + x].y, in[y*datLen + x].x);
+    }
+}
+
+__global__ void CuGetComplexArray(cufftComplex *out, float *magnitude, float *angle, int datLen){
+	int x = blockIdx.x*blockDim.x + threadIdx.x;
+    int y = blockIdx.y*blockDim.y + threadIdx.y;
+
+    if( (x < datLen) && (y < datLen) ){
+        out[y*datLen + x].x = magnitude[y*datLen + x]*cosf(angle[y*datLen + x]);
+        out[y*datLen + x].y = magnitude[y*datLen + x]*sinf(angle[y*datLen + x]);
+    }
+}
+
+void getPRonGPU(cufftComplex *dev_holo, cufftComplex *holo1, cufftComplex *holo2, cufftComplex *trans, cufftComplex *transInv, int iterations, int datLen, int blockSize){
+    dim3 gridDatLen((int)ceil((float)datLen/(float)blockSize), (int)ceil((float)datLen/(float)blockSize)), block(blockSize,blockSize);
+    cufftComplex *compAmp1, *compAmp2;
+    float *phi1, *phi2;
+    CHECK(cudaMalloc((void**)&compAmp1,sizeof(cufftComplex)*datLen*datLen));
+    CHECK(cudaMalloc((void**)&compAmp2,sizeof(cufftComplex)*datLen*datLen));
+    CHECK(cudaMalloc((void**)&phi1,sizeof(float)*datLen*datLen));
+    CHECK(cudaMalloc((void**)&phi2,sizeof(float)*datLen*datLen));
+    CuFillArrayFloat<<<gridDatLen,block>>>(phi1,1.0,datLen);
+
+    float *sqrtImg1, *sqrtImg2;
+    CHECK(cudaMalloc((void**)&sqrtImg1,sizeof(float)*datLen*datLen));
+    CHECK(cudaMalloc((void**)&sqrtImg2,sizeof(float)*datLen*datLen));
+    CuFloatSqrt<<<gridDatLen,block>>>(sqrtImg1,holo1,datLen);
+    CuFloatSqrt<<<gridDatLen,block>>>(sqrtImg2,holo2,datLen);
+    CuFillCompArrayByFloatArray<<<gridDatLen,block>>>(compAmp1,sqrtImg1,datLen);
+
+    cufftHandle plan;
+    cufftPlan2d(&plan, datLen, datLen, CUFFT_C2C);
+
+    for (int itr = 0; itr < iterations; itr++){
+        // STEP 1
+        cufftExecC2C(plan,compAmp1,compAmp2,CUFFT_FORWARD);
+        CuFFTshift<<<gridDatLen,block>>>(compAmp2,datLen);
+        CuComplexMul<<<gridDatLen,block>>>(compAmp2,compAmp2,trans,datLen);
+        CuFFTshift<<<gridDatLen,block>>>(compAmp2,datLen);
+        cufftExecC2C(plan,compAmp2,compAmp2,CUFFT_INVERSE);
+        CuGetCompAngle<<<gridDatLen,block>>>(phi2,compAmp2, datLen);
+
+        // STEP 2
+        CuGetComplexArray<<<gridDatLen,block>>>(compAmp2,sqrtImg2,phi2,datLen);
+
+        // STEP 3
+        cufftExecC2C(plan,compAmp2,compAmp1,CUFFT_FORWARD);
+        CuFFTshift<<<gridDatLen,block>>>(compAmp1,datLen);
+        CuComplexMul<<<gridDatLen,block>>>(compAmp1,compAmp1,transInv,datLen);
+        CuFFTshift<<<gridDatLen,block>>>(compAmp1,datLen);
+        cufftExecC2C(plan,compAmp1,compAmp1,CUFFT_INVERSE);
+        CuGetCompAngle<<<gridDatLen,block>>>(phi1,compAmp1,datLen);
+
+        // STEP 4
+        CuGetComplexArray<<<gridDatLen,block>>>(compAmp1,sqrtImg1,phi1,datLen);
+    }
+    
+    CHECK(cudaMemcpy(dev_holo,compAmp1,sizeof(cufftComplex)*datLen*datLen,cudaMemcpyDeviceToDevice));
+
+    cudaFree(compAmp1);
+    cudaFree(compAmp2);
+    cudaFree(phi1);
+    cudaFree(phi2);
+    cudaFree(sqrtImg1);
+    cudaFree(sqrtImg2);
+    cufftDestroy(plan);
+}
+
+void getPRImposed(float *floatout, unsigned char *charout, char16_t *in1, char16_t *in2, cufftComplex *transF, cufftComplex *transInt, cufftComplex *transPR, cufftComplex *transInvPR, int imgLen, int loopCount, int PRloops, int blockSize=16){
+    // dim3 Declaration
+    int datLen = imgLen*2;
+    dim3 gridImgLen((int)ceil((float)imgLen/(float)blockSize), (int)ceil((float)imgLen/(float)blockSize)), block(blockSize,blockSize);
+    dim3 gridDatLen((int)ceil((float)datLen/(float)blockSize), (int)ceil((float)datLen/(float)blockSize));
+    
+    // Char to device float and get mean
+    char16_t *dev_in1, *dev_in2;
+    CHECK(cudaMalloc((void**)&dev_in1,sizeof(char16_t)*imgLen*imgLen));
+    CHECK(cudaMalloc((void**)&dev_in2,sizeof(char16_t)*imgLen*imgLen));
+    float *dev_img1, *dev_img2;
+    CHECK(cudaMalloc((void**)&dev_img1,sizeof(float)*imgLen*imgLen));
+    CHECK(cudaMalloc((void**)&dev_img2,sizeof(float)*imgLen*imgLen));    
+    CHECK(cudaMemcpy(dev_in1, in1, sizeof(char16_t)*imgLen*imgLen, cudaMemcpyHostToDevice));
+    CHECK(cudaMemcpy(dev_in2, in2, sizeof(char16_t)*imgLen*imgLen, cudaMemcpyHostToDevice));
+    CuCharToNormFloatArr<<<gridImgLen,block>>>(dev_img1,dev_in1,imgLen,65535.0);
+    CuCharToNormFloatArr<<<gridImgLen,block>>>(dev_img2,dev_in2,imgLen,65535.0);
+    thrust::device_ptr<float> thimg1(dev_img1);
+    thrust::device_ptr<float> thimg2(dev_img2);
+    float meanImg1 = thrust::reduce(thimg1,thimg1+imgLen*imgLen, (float)0.0, thrust::plus<float>());
+    float meanImg2 = thrust::reduce(thimg2,thimg2+imgLen*imgLen, (float)0.0, thrust::plus<float>());
+    meanImg1 /= (float)(imgLen*imgLen);
+    meanImg2 /= (float)(imgLen*imgLen);
+    std::cout << "Cam1 mean: " << meanImg1 << std::endl;
+    std::cout << "Cam2 mean: " << meanImg2 << std::endl;
+
+    // Mean Normalization. Means to be 0.5
+    thrust::device_vector<float> dev_m1(imgLen*imgLen);
+    thrust::device_vector<float> dev_m2(imgLen*imgLen);
+    thrust::fill(dev_m1.begin(),dev_m1.end(),0.5/meanImg1);
+    thrust::fill(dev_m2.begin(),dev_m2.end(),0.5/meanImg2);
+    thrust::transform(thimg1,thimg1+imgLen*imgLen,dev_m1.begin(),dev_m1.end(), thrust::multiplies<float>());
+    thrust::transform(thimg2,thimg2+imgLen*imgLen,dev_m2.begin(),dev_m2.end(), thrust::multiplies<float>());
+
+    // !!!!!!!!!!!!! Cam1 img to dev_holo2, Cam2 img to dev_holo1 !!!!!!!!!!!!
+    cufftComplex *dev_holo1, *dev_holo2;
+    CHECK(cudaMalloc((void**)&dev_holo1,sizeof(cufftComplex)*datLen*datLen));
+    CHECK(cudaMalloc((void**)&dev_holo2,sizeof(cufftComplex)*datLen*datLen));
+    CuFillArrayComp<<<gridDatLen,block>>>(dev_holo1,0.5,datLen);
+    CuFillArrayComp<<<gridDatLen,block>>>(dev_holo2,0.5,datLen);
+    CuSetArrayCenterHalf<<<gridImgLen,block>>>(dev_holo1,dev_img2,imgLen);
+    CuSetArrayCenterHalf<<<gridImgLen,block>>>(dev_holo2,dev_img1,imgLen);
+
+    cufftComplex *dev_prholo;
+    CHECK(cudaMalloc((void**)&dev_prholo,sizeof(cufftComplex)*datLen*datLen));
+
+    getPRonGPU(dev_prholo,dev_holo1,dev_holo2,transPR,transInvPR,PRloops,datLen,blockSize);
+
+    float *dev_imp;
+    CHECK(cudaMalloc((void**)&dev_imp,sizeof(float)*datLen*datLen));
+    CuFillArrayFloat<<<gridDatLen,block>>>(dev_imp,1.0,datLen);
+
+    cufftHandle plan;
+    cufftPlan2d(&plan, datLen, datLen, CUFFT_C2C);
+
+    cufftExecC2C(plan, dev_prholo, dev_prholo, CUFFT_FORWARD);
+    CuFFTshift<<<gridDatLen,block>>>(dev_prholo, datLen);
+    CuComplexMul<<<gridDatLen,block>>>(dev_prholo, dev_prholo, transF, datLen);
+
+    cufftComplex *tmp_holo;
+    float *tmp_imp;
+    CHECK(cudaMalloc((void**)&tmp_holo,sizeof(cufftComplex)*datLen*datLen));
+    CHECK(cudaMalloc((void**)&tmp_imp,sizeof(float)*datLen*datLen));
+    
+    for (int itr = 0; itr < loopCount; itr++){
+        CuComplexMul<<<gridDatLen,block>>>(dev_prholo,dev_prholo,transInt,datLen);
+        CHECK(cudaMemcpy(tmp_holo,dev_prholo,sizeof(cufftComplex)*datLen*datLen,cudaMemcpyDeviceToDevice));
+        CuFFTshift<<<gridDatLen,block>>>(tmp_holo,datLen);
+        cufftExecC2C(plan, tmp_holo, tmp_holo, CUFFT_INVERSE);
+        CuInvFFTDiv<<<gridDatLen,block>>>(tmp_holo,(float)(datLen*datLen),datLen);
+        CuGetAbsFromComp<<<gridDatLen,block>>>(tmp_imp,tmp_holo,datLen);
+        CuUpdateImposed<<<gridDatLen,block>>>(dev_imp,tmp_imp,datLen);
+    }
+
+    float *dev_outImp;
+    CHECK(cudaMalloc((void**)&dev_outImp,sizeof(float)*imgLen*imgLen));
+    CuGetCenterHalf<<<gridImgLen,block>>>(dev_outImp,dev_imp,imgLen);
+
+    CHECK(cudaMemcpy(floatout, dev_outImp, sizeof(float)*imgLen*imgLen, cudaMemcpyDeviceToHost));
+
+    unsigned char *saveImp;
+    CHECK(cudaMalloc((void**)&saveImp,sizeof(unsigned char)*imgLen*imgLen));
+    CuNormFloatArrToChar<<<gridImgLen,block>>>(saveImp,dev_outImp,imgLen,255.0);
+
+    CHECK(cudaMemcpy(charout, saveImp, sizeof(unsigned char)*imgLen*imgLen, cudaMemcpyDeviceToHost));
+
+
+    cufftDestroy(plan);
+    CHECK(cudaFree(dev_in1));
+    CHECK(cudaFree(dev_in2));
+    CHECK(cudaFree(dev_img1));
+    CHECK(cudaFree(dev_img2));
+    CHECK(cudaFree(dev_holo1));
+    CHECK(cudaFree(dev_holo2));
+    CHECK(cudaFree(dev_prholo));
+    CHECK(cudaFree(dev_imp));
+    CHECK(cudaFree(tmp_holo));
+    CHECK(cudaFree(tmp_imp));
+    CHECK(cudaFree(dev_outImp));
+    CHECK(cudaFree(saveImp));
 }
