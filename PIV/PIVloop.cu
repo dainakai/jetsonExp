@@ -81,6 +81,9 @@ int main(int argc, char** argv){
         getImgAndPIV(pCam,imgLen,gridSize,intrSize,srchSize,zFront,dz,wavLen,dx,blockSize);
     }
     
+
+    // pCam[0]->DeInit();
+    // pCam[1]->DeInit();
     camList.Clear();
     system->ReleaseInstance();
 
