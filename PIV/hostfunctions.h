@@ -184,3 +184,30 @@ void readCoef(char *path, float a[12]){
     
     fclose(fp);
 }
+
+std::tuple<float,float> getCamMean(Spinnaker::CameraPtr pCam[2],const int imgLen){
+    // Camera Init
+    Spinnaker::CameraPtr cam1 = pCam[0];
+    Spinnaker::CameraPtr cam2 = pCam[1];
+    cam1->BeginAcquisition();
+    cam2->BeginAcquisition();
+    cam1->TriggerSoftware.Execute();
+    Spinnaker::ImagePtr pimg1 = cam1->GetNextImage();
+    Spinnaker::ImagePtr pimg2 = cam2->GetNextImage();
+    cam1->EndAcquisition();
+    cam2->EndAcquisition();
+    char16_t *charimg1 = (char16_t *)pimg1->GetData();
+    char16_t *charimg2 = (char16_t *)pimg2->GetData();
+
+    // Get Mean
+    float mean1 = 0.0;
+    float mean2 = 0.0;
+    for (int i = 0; i < imgLen*imgLen; i++){
+        mean1 += (float)((int)charimg1[i]);
+        mean2 += (float)((int)charimg2[i]);
+    }
+    mean1 /= (float)(imgLen*imgLen);
+    mean2 /= (float)(imgLen*imgLen);
+
+    return std::forward_as_tuple(mean1,mean2);
+}

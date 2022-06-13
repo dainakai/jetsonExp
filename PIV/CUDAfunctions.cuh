@@ -861,3 +861,4 @@ void getPRImposed(float *floatout, unsigned char *charout, char16_t *in1, char16
     CHECK(cudaFree(dev_outImp));
     CHECK(cudaFree(saveImp));
 }
+
