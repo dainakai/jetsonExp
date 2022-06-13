@@ -12,9 +12,19 @@
 #include <opencv2/imgcodecs.hpp>
 #include <opencv2/highgui.hpp>
 #include <opencv2/core/types_c.h>
+#include <signal.h>
+
+volatile sig_atomic_t e_flag = 0;
+void abrt_handler(int sig){
+    e_flag = 1;
+}
 
 int main(int argc, char** argv){
     std::cout << argv[0] << " Starting..." << std::endl;
+
+    if ( signal(SIGINT, abrt_handler) == SIG_ERR ) {
+        exit(1);
+    }
     
     // Parameters
     const float camExposure = 800.0;
@@ -65,14 +75,13 @@ int main(int argc, char** argv){
     // Camera Setup
     cameraSetup(pCam,imgLen,OffsetX,OffsetY,camExposure,camExpRatio);
 
+
     // Processing
-    while(1){
+    while(!e_flag){
         getImgAndPIV(pCam,imgLen,gridSize,intrSize,srchSize,zFront,dz,wavLen,dx,blockSize);
-        sleep(0.1);
     }
     
-    pCam[0]->DeInit();
-    pCam[1]->DeInit();
+    camList.Clear();
     system->ReleaseInstance();
 
     cudaDeviceReset();

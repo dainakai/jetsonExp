@@ -88,8 +88,7 @@ int main(int argc, char** argv){
     std::cout << "Cam2 Exposure:" << exp2 << std::endl;
     std::cout << "Exp ratio: " << exp2/exp1 << std::endl;
     
-    pCam[0]->DeInit();
-    pCam[1]->DeInit();
+    camList.Clear();
     system->ReleaseInstance();
 
     cudaDeviceReset();
