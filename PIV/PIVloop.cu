@@ -17,7 +17,7 @@ int main(int argc, char** argv){
     std::cout << argv[0] << " Starting..." << std::endl;
     
     // Parameters
-    const float camExposure = 700.0;
+    const float camExposure = 800.0;
     const float camExpRatio = 0.78;
 
     const int OffsetX = atoi(argv[1]);
