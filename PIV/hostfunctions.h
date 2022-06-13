@@ -117,24 +117,6 @@ void plotVecFieldOnGnuplot(const int imgLen){
  * @return なし
  */
 void cameraSetup(Spinnaker::CameraPtr pCam[2], int imgLen, int cam2OffSetX, int cam2OffSetY, float exposure=400.0, float expratio=0.78, float gain=0.0){
-    // unsigned int numCameras = camList.GetSize();
-    // if (numCameras==0){
-    //     printf("No Cameras are Connected! Quitting...\n");
-    //     exit(1);
-    // }
-
-    // Spinnaker::CameraPtr pCam[numCameras];
-    // // printf("CameraNumber\tModelName\tSerialNumber\n");
-    // std::cout << "Camera" << "\t" << "ModelName" << "\t\t\t" << "SerialNumber" << std::endl;
-    // for (int i = 0; i < numCameras; i++){
-    //     pCam[i] = camList.GetByIndex(i);
-    //     pCam[i]->Init();
-    //     Spinnaker::GenICam::gcstring modelName = pCam[i]->TLDevice.DeviceModelName.GetValue();
-    //     Spinnaker::GenICam::gcstring serialNum = pCam[i]->TLDevice.DeviceSerialNumber.GetValue();
-    //     // printf("%d\t%s\t%s\n",i,modelName,serialNum);
-    //     std::cout << i << "\t" << modelName << "\t" << serialNum << std::endl;
-    // }
-    // printf("\n");
 
     // Settings common to all cameras
     for (int i = 0; i < 2; i++){
