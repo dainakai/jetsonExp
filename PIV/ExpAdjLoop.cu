@@ -71,6 +71,8 @@ int main(int argc, char** argv){
     // Processing
     while(1){
         std::tie(mean1,mean2) = getCamMean(pCam,imgLen);
+        std::cout << "Cam1 mean: " << mean1 << std::endl; 
+        std::cout << "Cam2 mean: " << mean2 << std::endl; 
         if (abs(mean1-0.5)<=0.01 && abs(mean2-0.5) <= 0.01){
             break;
         }else if(abs(mean2-0.5)<=0.01){
@@ -82,10 +84,10 @@ int main(int argc, char** argv){
         }
 
     }
-    gain1 = pCam[0]->ExposureTime.GetValue();
-    gain2 = pCam[1]->ExposureTime.GetValue();
-    std::cout << "Cam1 Exposure:" << gain1 << std::endl;
-    std::cout << "Cam2 Exposure:" << gain2 << std::endl;
+    gain1 = pCam[0]->Gain.GetValue();
+    gain2 = pCam[1]->Gain.GetValue();
+    std::cout << "Cam1 Gain:" << gain1 << std::endl;
+    std::cout << "Cam2 Gain:" << gain2 << std::endl;
     std::cout << "Exp ratio: " << gain2/gain1 << std::endl;
     
     camList.Clear();

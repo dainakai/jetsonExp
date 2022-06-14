@@ -204,8 +204,8 @@ std::tuple<float,float> getCamMean(Spinnaker::CameraPtr pCam[2],const int imgLen
     float mean1 = 0.0;
     float mean2 = 0.0;
     for (int i = 0; i < imgLen*imgLen; i++){
-        mean1 += (float)((int)charimg1[i]);
-        mean2 += (float)((int)charimg2[i]);
+        mean1 += (float)((int)charimg1[i])/65535.0;
+        mean2 += (float)((int)charimg2[i])/65535.0;
     }
     mean1 /= (float)(imgLen*imgLen);
     mean2 /= (float)(imgLen*imgLen);
