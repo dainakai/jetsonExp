@@ -18,13 +18,16 @@ int main(int argc, char** argv){
     std::cout << argv[0] << " Starting..." << std::endl;
     
     // Parameters
-    const float camExposure = 800.0;
-    const float camExpRatio = 0.78;
+    const float camExposure = 100.0;
+    const float gainInit = 1.0;
 
     const int OffsetX = atoi(argv[1]);
     // const int OffsetX = 592;
     const int OffsetY = atoi(argv[2]);
     // const int OffsetY = 510;
+
+    float gain1,gain2;
+    std::tie(gain1,gain2) = readGain("./gain.dat");
     
     const int imgLen = 512;
     const int intrSize = imgLen/8;
@@ -63,7 +66,7 @@ int main(int argc, char** argv){
     }
     std::cout << "Camera Enum OK" << std::endl;
 
-    cameraSetup(pCam,imgLen,OffsetX,OffsetY,camExposure,camExpRatio);
+    cameraSetup(pCam,imgLen,OffsetX,OffsetY,camExposure,gain1,gain2);
 
     getImgAndBundleAdjCheck(pCam,imgLen,gridSize,intrSize,srchSize,zFront,dz,wavLen,dx,blockSize);
 

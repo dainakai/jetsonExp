@@ -459,7 +459,7 @@ void getGaborImposed(float *floatout, unsigned char *charout, char16_t *in, cuff
 }
 
 void getImgAndPIV(Spinnaker::CameraPtr pCam[2],const int imgLen, const int gridSize, const int intrSize, const int srchSize, const float zF, const float dz, const float waveLen, const float dx, const int blockSize){
-    // Constant Declaretion
+    // Constant Declaration
     const int datLen = imgLen*2;
     dim3 grid((int)ceil((float)datLen/(float)blockSize),(int)ceil((float)datLen/(float)blockSize)), block(blockSize,blockSize);
 
@@ -762,7 +762,16 @@ void getPRonGPU(cufftComplex *dev_holo, cufftComplex *holo1, cufftComplex *holo2
     cufftDestroy(plan);
 }
 
-void getPRImposed(float *floatout, unsigned char *charout, char16_t *in1, char16_t *in2, cufftComplex *transF, cufftComplex *transInt, cufftComplex *transPR, cufftComplex *transInvPR, int imgLen, int loopCount, int PRloops, int blockSize=16){
+__global__ void CuBackRem(float *out, float *back, float addConst, int imgLen){
+	int x = blockIdx.x*blockDim.x + threadIdx.x;
+    int y = blockIdx.y*blockDim.y + threadIdx.y;
+
+    if( (x < imgLen) && (y < imgLen) ){
+        out[y*imgLen + x] = out[y*imgLen+x]-back[y*imgLen+x]+addConst;
+    }
+}
+
+void getPRImposed(float *floatout, unsigned char *charout, char16_t *in1, char16_t *in2, float* backImg1, float* backImg2, cufftComplex *transF, cufftComplex *transInt, cufftComplex *transPR, cufftComplex *transInvPR, int imgLen, int loopCount, int PRloops, int blockSize=16){
     // dim3 Declaration
     int datLen = imgLen*2;
     dim3 gridImgLen((int)ceil((float)imgLen/(float)blockSize), (int)ceil((float)imgLen/(float)blockSize)), block(blockSize,blockSize);
@@ -788,13 +797,16 @@ void getPRImposed(float *floatout, unsigned char *charout, char16_t *in1, char16
     std::cout << "Cam1 mean: " << meanImg1 << std::endl;
     std::cout << "Cam2 mean: " << meanImg2 << std::endl;
 
-    // Mean Normalization. Means to be 0.5
-    thrust::device_vector<float> dev_m1(imgLen*imgLen);
-    thrust::device_vector<float> dev_m2(imgLen*imgLen);
-    thrust::fill(dev_m1.begin(),dev_m1.end(),0.5/meanImg1);
-    thrust::fill(dev_m2.begin(),dev_m2.end(),0.5/meanImg2);
-    thrust::transform(thimg1,thimg1+imgLen*imgLen,dev_m1.begin(),dev_m1.end(), thrust::multiplies<float>());
-    thrust::transform(thimg2,thimg2+imgLen*imgLen,dev_m2.begin(),dev_m2.end(), thrust::multiplies<float>());
+    // Background Subtraction. Means to be 0.5
+    float *dev_bkg1,*dev_bkg2;
+    CHECK(cudaMalloc((void**)&dev_bkg1,sizeof(float)*imgLen*imgLen));
+    CHECK(cudaMalloc((void**)&dev_bkg2,sizeof(float)*imgLen*imgLen));
+    CHECK(cudaMemcpy(dev_bkg1,backImg1,sizeof(float)*imgLen*imgLen,cudaMemcpyHostToDevice));
+    CHECK(cudaMemcpy(dev_bkg2,backImg2,sizeof(float)*imgLen*imgLen,cudaMemcpyHostToDevice));
+    CuBackRem<<<gridImgLen,block>>>(dev_img1,dev_bkg1,0.5,imgLen);
+    CuBackRem<<<gridImgLen,block>>>(dev_img2,dev_bkg2,0.5,imgLen);    
+    cudaFree(dev_bkg1);
+    cudaFree(dev_bkg2);
 
     // !!!!!!!!!!!!! Cam1 img to dev_holo2, Cam2 img to dev_holo1 !!!!!!!!!!!!
     cufftComplex *dev_holo1, *dev_holo2;
@@ -864,33 +876,41 @@ void getPRImposed(float *floatout, unsigned char *charout, char16_t *in1, char16
     CHECK(cudaFree(saveImp));
 }
 
-// void getBackGrounds(char16_t *backImg1,char16_t *backImg2, Spinnaker::CameraPtr pCam[2], int imgLen, int loopCount){
-//     Spinnaker::ImagePtr pImg1, pImg2;
-//     char16_t *cImg1, *cImg2;
-//     int *mImg1, *mImg2;
-//     mImg1 = (int *)calloc(sizeof(int)*imgLen*imgLen);
-//     mImg2 = (int *)calloc(sizeof(int)*imgLen*imgLen);
-//     for (int itr = 0; itr < loopCount; itr++)
-//     {
-//         pCam[0]->BeginAcquisition();
-//         pCam[1]->BeginAcquisition();
-//         pCam[0]->TriggerSoftware.Execute();
-//         pImg1 = pCam[0]->GetNextImage();
-//         pImg2 = pCam[1]->GetNextImage();
-//         pCam[0]->EndAcquisition();
-//         pCam[1]->EndAcquisition();
-//         cImg1 = (char16_t *)pImg1->GetData();
-//         cImg2 = (char16_t *)pImg2->GetData();
-//         for (int y = 0; y < imgLen*imgLen; y++)
-//         {
-//             mImg1
-//         }
-        
-//     }
-    
-//     free(mImg1);
-//     free(mImg2);
-// }
+void getBackGrounds(float *backImg1,float *backImg2, Spinnaker::CameraPtr pCam[2], int imgLen, int loopCount){
+    Spinnaker::ImagePtr pImg1, pImg2;
+    char16_t *cImg1, *cImg2;
+    float *fImg1, *fImg2;
+    fImg1 = (float *)calloc(imgLen*imgLen,sizeof(float));
+    fImg2 = (float *)calloc(imgLen*imgLen,sizeof(float));
+    for (int itr = 0; itr < loopCount; itr++)
+    {
+        pCam[0]->BeginAcquisition();
+        pCam[1]->BeginAcquisition();
+        pCam[0]->TriggerSoftware.Execute();
+        pImg1 = pCam[0]->GetNextImage();
+        pImg2 = pCam[1]->GetNextImage();
+        pCam[0]->EndAcquisition();
+        pCam[1]->EndAcquisition();
+        cImg1 = (char16_t *)pImg1->GetData();
+        cImg2 = (char16_t *)pImg2->GetData();
+        for (int idx = 0; idx < imgLen*imgLen; idx++){
+            fImg1[idx] += (float)((int)cImg1[idx]);
+            fImg2[idx] += (float)((int)cImg2[idx]);
+        }
+    }
+
+    for (int idx = 0; idx < imgLen*imgLen; idx++){
+        for (int idx = 0; idx < imgLen*imgLen; idx++){
+            fImg1[idx] /= (float)(imgLen*imgLen)*65535.0;
+            fImg2[idx] /= (float)(imgLen*imgLen)*65535.0;
+            backImg1[idx] = (float)fImg1[idx];
+            backImg2[idx] = (float)fImg2[idx];
+        }
+    }
+
+    free(fImg1);
+    free(fImg2);
+}
 
 
 // void PRprocessing(Spinnaker::CameraPtr pCam[2],const int imgLen, const int gridSize, const int intrSize, const int srchSize, const float zF, const float dz, const float waveLen, const float dx, const float prDist, const int blockSize){

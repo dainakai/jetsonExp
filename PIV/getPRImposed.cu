@@ -12,18 +12,31 @@
 #include <opencv2/imgcodecs.hpp>
 #include <opencv2/highgui.hpp>
 #include <opencv2/core/types_c.h>
+#include <signal.h>
+
+volatile sig_atomic_t e_flag = 0;
+void abrt_handler(int sig){
+    e_flag = 1;
+}
 
 int main(int argc, char** argv){
     std::cout << argv[0] << " Starting..." << std::endl;
+
+    if ( signal(SIGINT, abrt_handler) == SIG_ERR ) {
+        exit(1);
+    }
     
     // Parameters
     const float camExposure = 100.0;
     const float gainInit = 1.0;
 
     const int OffsetX = atoi(argv[1]);
-    // const int OffsetX = 584;
+    // const int OffsetX = 592;
     const int OffsetY = atoi(argv[2]);
-    // const int OffsetY = 506;
+    // const int OffsetY = 514;
+
+    float gain1,gain2;
+    std::tie(gain1,gain2) = readGain("./gain.dat");
     
     const int imgLen = 512;
     const int intrSize = imgLen/8;
@@ -31,13 +44,12 @@ int main(int argc, char** argv){
     const int srchSize = imgLen/4;
     const int gridNum = (int)(imgLen/gridSize);
 
-    const float zFront = 1000*60.0;
+    const float zF = 1000*60.0;
     const float dz = 50.0;
-    const float wavLen = 0.532;
+    const float waveLen = 0.532;
     const float dx = 3.45/0.5;
 
     const int blockSize = 16; 
-
 
     // Camera Init
     Spinnaker::SystemPtr system = Spinnaker::System::GetInstance();
@@ -63,33 +75,30 @@ int main(int argc, char** argv){
     std::cout << "Camera Enum OK" << std::endl;
 
     // Camera Setup
-    cameraSetup(pCam,imgLen,OffsetX,OffsetY,camExposure,gainInit,gainInit);
+    cameraSetup(pCam,imgLen,OffsetX,OffsetY,camExposure,gain1,gain2);
 
-    float mean1, mean2, gain1, gain2;
-    gain1 = pCam[0]->Gain.GetValue();
-    gain2 = pCam[1]->Gain.GetValue();
+
     // Processing
-    while(1){
-        std::tie(mean1,mean2) = getCamMean(pCam,imgLen);
-        std::cout << "Cam1 mean: " << mean1 << std::endl; 
-        std::cout << "Cam2 mean: " << mean2 << std::endl; 
-        if (abs(mean1-0.5)<=0.01 && abs(mean2-0.5) <= 0.01){
-            break;
-        }else if(abs(mean2-0.5)<=0.01){
-            gain1 += -(mean1-0.5);
-            pCam[0]->Gain.SetValue((double)gain1);
-        }else{
-            gain2 += -(mean2-0.5);
-            pCam[1]->Gain.SetValue((double)gain2);
-        }
 
-    }
-    gain1 = pCam[0]->Gain.GetValue();
-    gain2 = pCam[1]->Gain.GetValue();
-    std::cout << "Cam1 Gain:" << gain1 << std::endl;
-    std::cout << "Cam2 Gain:" << gain2 << std::endl;
-    std::cout << "Exp ratio: " << gain2/gain1 << std::endl;
-    
+    // Constant Declaration
+    const int datLen = imgLen*2;
+    dim3 grid((int)ceil((float)datLen/(float)blockSize),(int)ceil((float)datLen/(float)blockSize)), block(blockSize,blockSize);
+
+    // Propagation Init
+    float *d_sqr;
+    cufftComplex *d_transF, *d_transInt, *d_transPR, *d_transPRInv;
+    CHECK(cudaMalloc((void **)&d_sqr, sizeof(float)*datLen*datLen));
+    CHECK(cudaMalloc((void **)&d_transF, sizeof(cufftComplex)*datLen*datLen));
+    CHECK(cudaMalloc((void **)&d_transInt, sizeof(cufftComplex)*datLen*datLen));
+    CHECK(cudaMalloc((void **)&d_transF2, sizeof(cufftComplex)*datLen*datLen));
+    CHECK(cudaMalloc((void **)&d_transF2, sizeof(cufftComplex)*datLen*datLen));
+    CuTransSqr<<<grid,block>>>(d_sqr,datLen,waveLen,dx);
+    CuTransFunc<<<grid,block>>>(d_transF,d_sqr,zF,waveLen,datLen,dx);
+    CuTransFunc<<<grid,block>>>(d_transF2,d_sqr,zF*2.0,waveLen,datLen,dx);
+    CuTransFunc<<<grid,block>>>(d_transInt,d_sqr,dz,waveLen,datLen,dx);
+    std::cout << "Gabor Init OK" << std::endl;
+
+
     camList.Clear();
     system->ReleaseInstance();
 

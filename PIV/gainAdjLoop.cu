@@ -12,31 +12,18 @@
 #include <opencv2/imgcodecs.hpp>
 #include <opencv2/highgui.hpp>
 #include <opencv2/core/types_c.h>
-#include <signal.h>
-
-volatile sig_atomic_t e_flag = 0;
-void abrt_handler(int sig){
-    e_flag = 1;
-}
 
 int main(int argc, char** argv){
     std::cout << argv[0] << " Starting..." << std::endl;
-
-    if ( signal(SIGINT, abrt_handler) == SIG_ERR ) {
-        exit(1);
-    }
     
     // Parameters
     const float camExposure = 100.0;
     const float gainInit = 1.0;
 
     const int OffsetX = atoi(argv[1]);
-    // const int OffsetX = 592;
+    // const int OffsetX = 584;
     const int OffsetY = atoi(argv[2]);
-    // const int OffsetY = 514;
-
-    float gain1,gain2;
-    std::tie(gain1,gain2) = readGain("./gain.dat");
+    // const int OffsetY = 506;
     
     const int imgLen = 512;
     const int intrSize = imgLen/8;
@@ -50,7 +37,6 @@ int main(int argc, char** argv){
     const float dx = 3.45/0.5;
 
     const int blockSize = 16; 
-
 
     // Camera Init
     Spinnaker::SystemPtr system = Spinnaker::System::GetInstance();
@@ -76,17 +62,38 @@ int main(int argc, char** argv){
     std::cout << "Camera Enum OK" << std::endl;
 
     // Camera Setup
-    cameraSetup(pCam,imgLen,OffsetX,OffsetY,camExposure,gain1,gain2);
+    cameraSetup(pCam,imgLen,OffsetX,OffsetY,camExposure,gainInit,gainInit);
 
-
+    float mean1, mean2, gain1, gain2;
+    gain1 = pCam[0]->Gain.GetValue();
+    gain2 = pCam[1]->Gain.GetValue();
     // Processing
-    while(!e_flag){
-        getImgAndPIV(pCam,imgLen,gridSize,intrSize,srchSize,zFront,dz,wavLen,dx,blockSize);
-    }
-    
+    while(1){
+        std::tie(mean1,mean2) = getCamMean(pCam,imgLen);
+        std::cout << "Cam1 mean: " << mean1 << std::endl; 
+        std::cout << "Cam2 mean: " << mean2 << std::endl; 
+        if (abs(mean1-0.5)<=0.01 && abs(mean2-0.5) <= 0.01){
+            break;
+        }else if(abs(mean2-0.5)<=0.01){
+            gain1 += -(mean1-0.5);
+            pCam[0]->Gain.SetValue((double)gain1);
+        }else{
+            gain2 += -(mean2-0.5);
+            pCam[1]->Gain.SetValue((double)gain2);
+        }
 
-    // pCam[0]->DeInit();
-    // pCam[1]->DeInit();
+    }
+    gain1 = pCam[0]->Gain.GetValue();
+    gain2 = pCam[1]->Gain.GetValue();
+    std::cout << "Cam1 Gain:" << gain1 << std::endl;
+    std::cout << "Cam2 Gain:" << gain2 << std::endl;
+    std::cout << "Gain ratio: " << gain2/gain1 << std::endl;
+
+    FILE *fp;
+    fp = fopen("gain.dat","w");
+    fprintf(fp,"%lf\n%lf\n",gain1,gain2);
+    fclose(fp);
+
     camList.Clear();
     system->ReleaseInstance();
 

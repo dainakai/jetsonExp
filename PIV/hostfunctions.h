@@ -186,6 +186,24 @@ void readCoef(char *path, float a[12]){
     fclose(fp);
 }
 
+std::tuple<float, float> readGain(char *path){
+    float gain1,gain2;
+    FILE *fp;
+    fp = fopen(path,"r");
+    if(fp == NULL){
+        printf("%s seems not to exist! Quitting...\n",path);
+        exit(1);
+    }
+    char tmp1[30], tmp2[30];
+    fgets(tmp1,100,fp);
+    fgets(tmp2,100,fp);
+    gain1 = atof(tmp1);
+    gain2 = atof(tmp2);
+    fclose(fp);
+
+    return std::forward_as_tuple(gain1,gain2);
+}
+
 std::tuple<float,float> getCamMean(Spinnaker::CameraPtr pCam[2],const int imgLen){
     // Camera Init
     Spinnaker::CameraPtr cam1 = pCam[0];
