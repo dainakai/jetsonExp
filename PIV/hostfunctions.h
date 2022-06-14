@@ -116,7 +116,7 @@ void plotVecFieldOnGnuplot(const int imgLen){
  * @param cam2OffSetX カメラ2のオフセット．事前にSpinViewで調整
  * @return なし
  */
-void cameraSetup(Spinnaker::CameraPtr pCam[2], int imgLen, int cam2OffSetX, int cam2OffSetY, float exposure=400.0, float expratio=0.78, float gain=0.0){
+void cameraSetup(Spinnaker::CameraPtr pCam[2], int imgLen, int cam2OffSetX, int cam2OffSetY, float exposure, float gain1, float gain2){
 
     // Settings common to all cameras
     for (int i = 0; i < 2; i++){
@@ -128,8 +128,9 @@ void cameraSetup(Spinnaker::CameraPtr pCam[2], int imgLen, int cam2OffSetX, int 
         // pCam[i]->Height.SetValue(imgLen);
         pCam[i]->ExposureAuto.SetValue(Spinnaker::ExposureAutoEnums::ExposureAuto_Off);
         pCam[i]->ExposureMode.SetValue(Spinnaker::ExposureModeEnums::ExposureMode_Timed);
+        pCam[i]->ExposureTime.SetValue(exposure);
         pCam[i]->GainAuto.SetValue(Spinnaker::GainAutoEnums::GainAuto_Off);
-        pCam[i]->Gain.SetValue(gain);
+        // pCam[i]->Gain.SetValue(gain);
         pCam[i]->AcquisitionMode.SetValue(Spinnaker::AcquisitionModeEnums::AcquisitionMode_Continuous);
     }
 
@@ -138,7 +139,7 @@ void cameraSetup(Spinnaker::CameraPtr pCam[2], int imgLen, int cam2OffSetX, int 
     // Settings for Camera 1
     pCam[0]->Width.SetValue(imgLen);
     pCam[0]->Height.SetValue(imgLen);
-    pCam[0]->ExposureTime.SetValue(exposure);
+    pCam[0]->Gain.SetValue(gain1);
     pCam[0]->OffsetX.SetValue((int)((2048-imgLen)/2));
     pCam[0]->OffsetY.SetValue((int)((1536-imgLen)/2));
     pCam[0]->ReverseX.SetValue(true);
@@ -157,7 +158,7 @@ void cameraSetup(Spinnaker::CameraPtr pCam[2], int imgLen, int cam2OffSetX, int 
     pCam[1]->Height.SetValue(imgLen);
     pCam[1]->OffsetX.SetValue(cam2OffSetX);
     pCam[1]->OffsetY.SetValue(cam2OffSetY);
-    pCam[1]->ExposureTime.SetValue(exposure*expratio);
+    pCam[1]->Gain.SetValue(gain2);
     pCam[1]->ReverseX.SetValue(false);
     pCam[1]->ReverseY.SetValue(false);
     pCam[1]->TriggerMode.SetValue(Spinnaker::TriggerModeEnums::TriggerMode_On);
