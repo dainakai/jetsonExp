@@ -18,7 +18,10 @@ int main(int argc, char** argv){
     
     // Parameters
     const float camExposure = 100.0;
-    const float gainInit = 1.0;
+    // const float gainInit = 1.0;
+
+    float gain1,gain2;
+    std::tie(gain1,gain2) = readGain("./gain.dat");
 
     const int OffsetX = atoi(argv[1]);
     // const int OffsetX = 584;
@@ -62,9 +65,9 @@ int main(int argc, char** argv){
     std::cout << "Camera Enum OK" << std::endl;
 
     // Camera Setup
-    cameraSetup(pCam,imgLen,OffsetX,OffsetY,camExposure,gainInit,gainInit);
+    cameraSetup(pCam,imgLen,OffsetX,OffsetY,camExposure,gain1,gain2);
 
-    float mean1, mean2, gain1, gain2;
+    float mean1, mean2;
     gain1 = pCam[0]->Gain.GetValue();
     gain2 = pCam[1]->Gain.GetValue();
     // Processing

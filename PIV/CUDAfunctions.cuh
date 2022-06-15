@@ -458,89 +458,6 @@ void getGaborImposed(float *floatout, unsigned char *charout, char16_t *in, cuff
     CHECK(cudaFree(saveImp));
 }
 
-void getBackRemGaborImposed(float *floatout, unsigned char *charout, char16_t *in, float*backImg, cufftComplex *transF, cufftComplex *transInt, int imgLen, int loopCount, int blockSize=16){
-    int datLen = imgLen*2;
-    dim3 gridImgLen((int)ceil((float)imgLen/(float)blockSize), (int)ceil((float)imgLen/(float)blockSize)), block(blockSize,blockSize);
-    dim3 gridDatLen((int)ceil((float)datLen/(float)blockSize), (int)ceil((float)datLen/(float)blockSize));
-    
-    char16_t *dev_in;
-    CHECK(cudaMalloc((void**)&dev_in,sizeof(char16_t)*imgLen*imgLen));
-    float *dev_img;
-    CHECK(cudaMalloc((void**)&dev_img,sizeof(float)*imgLen*imgLen));
-    CHECK(cudaMemcpy(dev_in, in, sizeof(char16_t)*imgLen*imgLen, cudaMemcpyHostToDevice));
-    CuCharToNormFloatArr<<<gridImgLen,block>>>(dev_img,dev_in,imgLen,65535.0);
-    thrust::device_ptr<float> thimg(dev_img);
-    float meanImg = thrust::reduce(thimg,thimg+imgLen*imgLen, (float)0.0, thrust::plus<float>());
-    meanImg /= (float)(imgLen*imgLen);
-    std::cout << "Image mean: " << meanImg << std::endl;
-
-    // Background Subtraction. Means to be 0.5
-    float *dev_bkg;
-    CHECK(cudaMalloc((void**)&dev_bkg,sizeof(float)*imgLen*imgLen));
-    CHECK(cudaMemcpy(dev_bkg,backImg,sizeof(float)*imgLen*imgLen,cudaMemcpyHostToDevice));
-    CuBackRem<<<gridImgLen,block>>>(dev_img,dev_bkg,0.5,imgLen);
-    cudaFree(dev_bkg);
-
-    cufftComplex *dev_holo;
-    CHECK(cudaMalloc((void**)&dev_holo,sizeof(cufftComplex)*datLen*datLen));
-    CuFillArrayComp<<<gridDatLen,block>>>(dev_holo,meanImg,datLen);
-    CuSetArrayCenterHalf<<<gridImgLen,block>>>(dev_holo,dev_img,imgLen);
-
-    float *dev_imp;
-    CHECK(cudaMalloc((void**)&dev_imp,sizeof(float)*datLen*datLen));
-    CuFillArrayFloat<<<gridDatLen,block>>>(dev_imp,1.0,datLen);
-
-    cufftHandle plan;
-    cufftPlan2d(&plan, datLen, datLen, CUFFT_C2C);
-
-    cufftExecC2C(plan, dev_holo, dev_holo, CUFFT_FORWARD);
-    CuFFTshift<<<gridDatLen,block>>>(dev_holo, datLen);
-    CuComplexMul<<<gridDatLen,block>>>(dev_holo, dev_holo, transF, datLen);
-
-    cufftComplex *tmp_holo;
-    float *tmp_imp;
-    CHECK(cudaMalloc((void**)&tmp_holo,sizeof(cufftComplex)*datLen*datLen));
-    CHECK(cudaMalloc((void**)&tmp_imp,sizeof(float)*datLen*datLen));
-    
-    for (int itr = 0; itr < loopCount; itr++){
-        CuComplexMul<<<gridDatLen,block>>>(dev_holo,dev_holo,transInt,datLen);
-        CHECK(cudaMemcpy(tmp_holo,dev_holo,sizeof(cufftComplex)*datLen*datLen,cudaMemcpyDeviceToDevice));
-        CuFFTshift<<<gridDatLen,block>>>(tmp_holo,datLen);
-        cufftExecC2C(plan, tmp_holo, tmp_holo, CUFFT_INVERSE);
-        CuInvFFTDiv<<<gridDatLen,block>>>(tmp_holo,(float)(datLen*datLen),datLen);
-        CuGetAbsFromComp<<<gridDatLen,block>>>(tmp_imp,tmp_holo,datLen);
-        CuUpdateImposed<<<gridDatLen,block>>>(dev_imp,tmp_imp,datLen);
-    }
-
-    float *dev_outImp;
-    CHECK(cudaMalloc((void**)&dev_outImp,sizeof(float)*imgLen*imgLen));
-    CuGetCenterHalf<<<gridImgLen,block>>>(dev_outImp,dev_imp,imgLen);
-
-    CHECK(cudaMemcpy(floatout, dev_outImp, sizeof(float)*imgLen*imgLen, cudaMemcpyDeviceToHost));
-
-    unsigned char *saveImp;
-    CHECK(cudaMalloc((void**)&saveImp,sizeof(unsigned char)*imgLen*imgLen));
-    CuNormFloatArrToChar<<<gridImgLen,block>>>(saveImp,dev_outImp,imgLen,255.0);
-
-    CHECK(cudaMemcpy(charout, saveImp, sizeof(unsigned char)*imgLen*imgLen, cudaMemcpyDeviceToHost));
-
-    std::cout << (float)floatout[0] << std::endl;
-    std::cout << (float)floatout[10] << std::endl;
-    std::cout << (float)floatout[100] << std::endl;
-    std::cout << (float)floatout[1000] << std::endl;
-
-    cufftDestroy(plan);
-    CHECK(cudaFree(dev_in));
-    CHECK(cudaFree(dev_img));
-    CHECK(cudaFree(dev_bkg));
-    CHECK(cudaFree(dev_holo));
-    CHECK(cudaFree(dev_imp));
-    CHECK(cudaFree(tmp_holo));
-    CHECK(cudaFree(tmp_imp));
-    CHECK(cudaFree(dev_outImp));
-    CHECK(cudaFree(saveImp));
-}
-
 void getImgAndPIV(Spinnaker::CameraPtr pCam[2],const int imgLen, const int gridSize, const int intrSize, const int srchSize, const float zF, const float dz, const float waveLen, const float dx, const int blockSize){
     // Constant Declaration
     const int datLen = imgLen*2;
@@ -616,6 +533,7 @@ void getImgAndPIV(Spinnaker::CameraPtr pCam[2],const int imgLen, const int gridS
     cv::moveWindow("Cam2",530,0);
     cv::imshow("Cam1",imp1);
     cv::imshow("Cam2",imp2);
+    cv::waitKey(10);
     // int key = cv::waitKey(1000);
     // if (key>=0) exit(0);
 
@@ -643,11 +561,11 @@ void getImgAndPIV(Spinnaker::CameraPtr pCam[2],const int imgLen, const int gridS
 }
 
 void getNewImage(char16_t *out, char16_t *img, float a[12], int imgLen){
-    int bkg = 0;
+    long int bkg = 0;
     for (int j = 0; j < imgLen*imgLen; j++){
-        bkg += (int)img[j];
+        bkg += (long int)img[j];
     }
-    bkg = (int)(round((float)bkg/(float)(imgLen*imgLen)));
+    bkg = (long int)(round((float)bkg/(float)(imgLen*imgLen)));
 
 
     for (int i = 0; i < imgLen; i++){
@@ -657,7 +575,7 @@ void getNewImage(char16_t *out, char16_t *img, float a[12], int imgLen){
             if (tmpX>=0 && tmpX<imgLen && tmpY>=0 && tmpY <imgLen){
                 out[i*imgLen+j] = img[tmpY*imgLen+tmpX];
             }else{
-                out[i*imgLen+j] = bkg;
+                out[i*imgLen+j] = (char16_t)bkg;
             }
         }
     }
@@ -969,6 +887,7 @@ void getBackGrounds(float *backImg1,float *backImg2, unsigned char *cBackImg1, u
     fImg2 = (float *)calloc(imgLen*imgLen,sizeof(float));
     for (int itr = 0; itr < loopCount; itr++)
     {
+        std::cout << "iteration: " << itr << std::endl;
         pCam[0]->BeginAcquisition();
         pCam[1]->BeginAcquisition();
         pCam[0]->TriggerSoftware.Execute();
@@ -983,112 +902,101 @@ void getBackGrounds(float *backImg1,float *backImg2, unsigned char *cBackImg1, u
             fImg2[idx] += (float)((int)cImg2[idx]);
         }
     }
+    std::cout << fImg1[0] << std::endl;
 
     for (int idx = 0; idx < imgLen*imgLen; idx++){
-        for (int idx = 0; idx < imgLen*imgLen; idx++){
-            fImg1[idx] /= (float)(imgLen*imgLen)*65535.0;
-            fImg2[idx] /= (float)(imgLen*imgLen)*65535.0;
-            backImg1[idx] = (float)fImg1[idx];
-            backImg2[idx] = (float)fImg2[idx];
-            cBackImg1[idx] = (unsigned char)(fImg1[idx]*255.0);
-            cBackImg2[idx] = (unsigned char)(fImg1[idx]*255.0);
-        }
+        fImg1[idx] /= (float)(loopCount)*65535.0;
+        fImg2[idx] /= (float)(loopCount)*65535.0;
+        backImg1[idx] = (float)fImg1[idx];
+        backImg2[idx] = (float)fImg2[idx];
+        cBackImg1[idx] = (unsigned char)(fImg1[idx]*255.0);
+        cBackImg2[idx] = (unsigned char)(fImg1[idx]*255.0);
     }
+    std::cout << "functest" << std::endl;
 
     free(fImg1);
     free(fImg2);
+
 }
 
-
-// void PRprocessing(Spinnaker::CameraPtr pCam[2],const int imgLen, const int gridSize, const int intrSize, const int srchSize, const float zF, const float dz, const float waveLen, const float dx, const float prDist, const int blockSize){
-//     // Constant Declaretion
-//     const int datLen = imgLen*2;
-//     dim3 grid((int)ceil((float)datLen/(float)blockSize),(int)ceil((float)datLen/(float)blockSize)), block(blockSize,blockSize);
-
-//     // Gabor Init
-//     float *d_sqr;
-//     cufftComplex *d_transF, *d_transInt, *d_transPR, *d_transPRInv;
-//     CHECK(cudaMalloc((void **)&d_sqr, sizeof(float)*datLen*datLen));
-//     CHECK(cudaMalloc((void **)&d_transF, sizeof(cufftComplex)*datLen*datLen));
-//     CHECK(cudaMalloc((void **)&d_transInt, sizeof(cufftComplex)*datLen*datLen));
-//     CHECK(cudaMalloc((void **)&d_transPR, sizeof(cufftComplex)*datLen*datLen));
-//     CHECK(cudaMalloc((void **)&d_transPRInv, sizeof(cufftComplex)*datLen*datLen));
-//     CuTransSqr<<<grid,block>>>(d_sqr,datLen,waveLen,dx);
-//     CuTransFunc<<<grid,block>>>(d_transF,d_sqr,zF,waveLen,datLen,dx);
-//     CuTransFunc<<<grid,block>>>(d_transInt,d_sqr,dz,waveLen,datLen,dx);
-//     CuTransFunc<<<grid,block>>>(d_transPR,d_sqr,prDist,waveLen,datLen,dx);
-//     CuTransFunc<<<grid,block>>>(d_transPRInv,d_sqr,-prDist,waveLen,datLen,dx);
-//     std::cout << "PR Init OK" << std::endl;
-
-//     // Camera Init
-//     Spinnaker::CameraPtr cam1 = pCam[0];
-//     Spinnaker::CameraPtr cam2 = pCam[1];
-//     cam1->BeginAcquisition();
-//     cam2->BeginAcquisition();
-//     cam1->TriggerSoftware.Execute();
-//     Spinnaker::ImagePtr pimg1 = cam1->GetNextImage();
-//     Spinnaker::ImagePtr pimg2 = cam2->GetNextImage();
-//     cam1->EndAcquisition();
-//     cam2->EndAcquisition();
-//     // unsigned char *charimg1 = (unsigned char *)pimg1->GetData();
-//     char16_t *charimg1 = (char16_t *)pimg1->GetData();
-//     // unsigned char *charimg2 = (unsigned char *)pimg2->GetData();
-//     char16_t *charimg2 = (char16_t *)pimg2->GetData();
-
-//     // Bundle Adj Check
-//     float coefa[12];
-//     char *coefPath = "./coefa.dat";
-//     readCoef(coefPath,coefa);
-//     char16_t *charimg3;
-//     charimg3 = (char16_t *)malloc(sizeof(char16_t)*imgLen*imgLen);
-//     getNewImage(charimg3,charimg2,coefa,imgLen);
-
-//     float *floatimp1, *floatimp2;
-//     floatimp1 = (float *)malloc(sizeof(float)*imgLen*imgLen);
-//     floatimp2 = (float *)malloc(sizeof(float)*imgLen*imgLen);
-
-//     unsigned char *charimp1, *charimp2;
-//     charimp1 = (unsigned char *)malloc(sizeof(unsigned char)*imgLen*imgLen);
-//     charimp2 = (unsigned char *)malloc(sizeof(unsigned char)*imgLen*imgLen);
-
-//     //Save Imposed Image
-//     Spinnaker::ImagePtr saveImg1 = Spinnaker::Image::Create(imgLen,imgLen,0,0,Spinnaker::PixelFormatEnums::PixelFormat_Mono8,charimp1);
-//     getGaborImposed(floatimp1,charimp1,charimg1,d_transF2,d_transInt,imgLen,500);
-//     saveImg1->Convert(Spinnaker::PixelFormat_Mono8);
+void getBackRemGaborImposed(float *floatout, unsigned char *charout, char16_t *in, float*backImg, cufftComplex *transF, cufftComplex *transInt, int imgLen, int loopCount, int blockSize=16){
+    int datLen = imgLen*2;
+    dim3 gridImgLen((int)ceil((float)imgLen/(float)blockSize), (int)ceil((float)imgLen/(float)blockSize)), block(blockSize,blockSize);
+    dim3 gridDatLen((int)ceil((float)datLen/(float)blockSize), (int)ceil((float)datLen/(float)blockSize));
     
-//     Spinnaker::ImagePtr saveImg2 = Spinnaker::Image::Create(imgLen,imgLen,0,0,Spinnaker::PixelFormatEnums::PixelFormat_Mono8,charimp2);
-//     getGaborImposed(floatimp2,charimp2,charimg3,d_transF,d_transInt,imgLen,500);
-//     saveImg2->Convert(Spinnaker::PixelFormat_Mono8);
+    char16_t *dev_in;
+    CHECK(cudaMalloc((void**)&dev_in,sizeof(char16_t)*imgLen*imgLen));
+    float *dev_img;
+    CHECK(cudaMalloc((void**)&dev_img,sizeof(float)*imgLen*imgLen));
+    CHECK(cudaMemcpy(dev_in, in, sizeof(char16_t)*imgLen*imgLen, cudaMemcpyHostToDevice));
+    CuCharToNormFloatArr<<<gridImgLen,block>>>(dev_img,dev_in,imgLen,65535.0);
+    thrust::device_ptr<float> thimg(dev_img);
+    float meanImg = thrust::reduce(thimg,thimg+imgLen*imgLen, (float)0.0, thrust::plus<float>());
+    meanImg /= (float)(imgLen*imgLen);
+    std::cout << "Image mean: " << meanImg << std::endl;
 
-//     saveImg1->Save("./bundle1.jpg");
-//     saveImg2->Save("./bundle2.jpg");
+    // Background Subtraction. Means to be 0.5
+    float *dev_bkg;
+    CHECK(cudaMalloc((void**)&dev_bkg,sizeof(float)*imgLen*imgLen));
+    CHECK(cudaMemcpy(dev_bkg,backImg,sizeof(float)*imgLen*imgLen,cudaMemcpyHostToDevice));
+    CuBackRem<<<gridImgLen,block>>>(dev_img,dev_bkg,0.5,imgLen);
+    cudaFree(dev_bkg);
 
-//     std::cout << "getGaborImposed OK" << std::endl;
+    cufftComplex *dev_holo;
+    CHECK(cudaMalloc((void**)&dev_holo,sizeof(cufftComplex)*datLen*datLen));
+    CuFillArrayComp<<<gridDatLen,block>>>(dev_holo,meanImg,datLen);
+    CuSetArrayCenterHalf<<<gridImgLen,block>>>(dev_holo,dev_img,imgLen);
 
-//     // Original image
-//     // pimg1->Convert(Spinnaker::PixelFormat_Mono8);
-//     // pimg2->Convert(Spinnaker::PixelFormat_Mono8);
-//     // pimg1->Save("./outimg1.jpg");
-//     // pimg1->Save("./outimg2.jpg");
+    float *dev_imp;
+    CHECK(cudaMalloc((void**)&dev_imp,sizeof(float)*datLen*datLen));
+    CuFillArrayFloat<<<gridDatLen,block>>>(dev_imp,1.0,datLen);
 
-//     // PIV
-//     int gridNum = imgLen/gridSize;
-//     float vecArrayX[(gridNum-1)*(gridNum-1)];
-//     float vecArrayY[(gridNum-1)*(gridNum-1)];
-//     float *pvecArrX = (float *)vecArrayX;
-//     float *pvecArrY = (float *)vecArrayY;
-//     getPIVMapOnGPU(pvecArrX,pvecArrY,floatimp1,floatimp2,imgLen,gridSize,intrSize,srchSize,blockSize);
-//     saveVecArray(pvecArrX,pvecArrY,gridSize,gridNum);
-//     plotVecFieldOnGnuplot(imgLen);
+    cufftHandle plan;
+    cufftPlan2d(&plan, datLen, datLen, CUFFT_C2C);
 
-//     // Finalize
-//     free(floatimp1);
-//     free(floatimp2);
-//     free(charimp1);
-//     free(charimp2);
-//     free(charimg3);
-//     CHECK(cudaFree(d_sqr));
-//     CHECK(cudaFree(d_transF));
-//     CHECK(cudaFree(d_transF2));
-//     CHECK(cudaFree(d_transInt));
-// }
+    cufftExecC2C(plan, dev_holo, dev_holo, CUFFT_FORWARD);
+    CuFFTshift<<<gridDatLen,block>>>(dev_holo, datLen);
+    CuComplexMul<<<gridDatLen,block>>>(dev_holo, dev_holo, transF, datLen);
+
+    cufftComplex *tmp_holo;
+    float *tmp_imp;
+    CHECK(cudaMalloc((void**)&tmp_holo,sizeof(cufftComplex)*datLen*datLen));
+    CHECK(cudaMalloc((void**)&tmp_imp,sizeof(float)*datLen*datLen));
+    
+    for (int itr = 0; itr < loopCount; itr++){
+        CuComplexMul<<<gridDatLen,block>>>(dev_holo,dev_holo,transInt,datLen);
+        CHECK(cudaMemcpy(tmp_holo,dev_holo,sizeof(cufftComplex)*datLen*datLen,cudaMemcpyDeviceToDevice));
+        CuFFTshift<<<gridDatLen,block>>>(tmp_holo,datLen);
+        cufftExecC2C(plan, tmp_holo, tmp_holo, CUFFT_INVERSE);
+        CuInvFFTDiv<<<gridDatLen,block>>>(tmp_holo,(float)(datLen*datLen),datLen);
+        CuGetAbsFromComp<<<gridDatLen,block>>>(tmp_imp,tmp_holo,datLen);
+        CuUpdateImposed<<<gridDatLen,block>>>(dev_imp,tmp_imp,datLen);
+    }
+
+    float *dev_outImp;
+    CHECK(cudaMalloc((void**)&dev_outImp,sizeof(float)*imgLen*imgLen));
+    CuGetCenterHalf<<<gridImgLen,block>>>(dev_outImp,dev_imp,imgLen);
+
+    CHECK(cudaMemcpy(floatout, dev_outImp, sizeof(float)*imgLen*imgLen, cudaMemcpyDeviceToHost));
+
+    unsigned char *saveImp;
+    CHECK(cudaMalloc((void**)&saveImp,sizeof(unsigned char)*imgLen*imgLen));
+    CuNormFloatArrToChar<<<gridImgLen,block>>>(saveImp,dev_outImp,imgLen,255.0);
+
+    CHECK(cudaMemcpy(charout, saveImp, sizeof(unsigned char)*imgLen*imgLen, cudaMemcpyDeviceToHost));
+
+    std::cout << (float)floatout[0] << std::endl;
+    std::cout << (float)floatout[10] << std::endl;
+    std::cout << (float)floatout[100] << std::endl;
+    std::cout << (float)floatout[1000] << std::endl;
+
+    cufftDestroy(plan);
+    CHECK(cudaFree(dev_in));
+    CHECK(cudaFree(dev_img));
+    CHECK(cudaFree(dev_holo));
+    CHECK(cudaFree(dev_imp));
+    CHECK(cudaFree(tmp_holo));
+    CHECK(cudaFree(tmp_imp));
+    CHECK(cudaFree(dev_outImp));
+    CHECK(cudaFree(saveImp));
+}

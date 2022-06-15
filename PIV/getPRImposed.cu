@@ -25,7 +25,7 @@ int main(int argc, char** argv){
     std::cout << argv[0] << " Starting..." << std::endl;
 
     // Key interrupt handling
-    if ( signal(SIGINT, abrt_handler) == SIG_ERR ) {
+    if ( signal(SIGTSTP, abrt_handler) == SIG_ERR ) {
         exit(1);
     }
     
@@ -48,7 +48,7 @@ int main(int argc, char** argv){
     const int gridNum = (int)(imgLen/gridSize);
 
     const int prLoop = 20;
-    const int backgroundLoops = 100;
+    const int backgroundLoops = 30;
     const int ImposedLoop = 100;
 
     const float prDist = 60.0*1000.0; // 60 mm
@@ -118,6 +118,7 @@ int main(int argc, char** argv){
     char16_t *charimg1 = (char16_t *)pImg1->GetData();
     char16_t *charimg2 = (char16_t *)pImg2->GetData();
 
+
     float *bImg1, *bImg2;
     bImg1 = (float *)malloc(sizeof(float)*imgLen*imgLen);
     bImg2 = (float *)malloc(sizeof(float)*imgLen*imgLen);
@@ -129,8 +130,9 @@ int main(int argc, char** argv){
     getBackGrounds(bImg1,bImg2,cBackImg1,cBackImg2,pCam,imgLen,backgroundLoops);
     saveBack1->Convert(Spinnaker::PixelFormat_Mono8);
     saveBack2->Convert(Spinnaker::PixelFormat_Mono8);
-    saveBack1->Save("./meanBkg1.bmp");
-    saveBack2->Save("./meanBkg2.bmp");
+    saveBack1->Save("./meanBkg1.png");
+    saveBack2->Save("./meanBkg2.png");
+    std::cout << "test" << std::endl;
 
     // Process Bridge
     std::cout << "Background Acquisition Completed. PR Reconstruction will be started in..." << std::endl;
@@ -142,6 +144,9 @@ int main(int argc, char** argv){
     
 
     // Start Processing
+    float coefa[12];
+    char *coefPath = "./coefa.dat";
+    readCoef(coefPath,coefa);
     float *outPrImp, *outGaborImp; 
     outPrImp = (float *)malloc(sizeof(float)*imgLen*imgLen);
     outGaborImp = (float *)malloc(sizeof(float)*imgLen*imgLen);
@@ -189,14 +194,16 @@ int main(int argc, char** argv){
         charimg1 = (char16_t *)pImg1->GetData();
         charimg2 = (char16_t *)pImg2->GetData();
 
+        getNewImage(charimg2,charimg2,coefa,imgLen);
+
         getPRImposed(outPrImp,outPrCImp,charimg1,charimg2,bImg1,bImg2,d_transF,d_transInt,d_transPR,d_transPRInv,imgLen,ImposedLoop,prLoop,blockSize);
         getBackRemGaborImposed(outGaborImp,outGaborCImp,charimg1,bImg1,d_transF,d_transInt,imgLen,ImposedLoop,blockSize);
 
         saveGaborImp->Convert(Spinnaker::PixelFormat_Mono8);
         savePrImp->Convert(Spinnaker::PixelFormat_Mono8);
         
-        sprintf(savePrPath,"%s/PR/%05d",dirPath,num);
-        sprintf(saveGaborPath,"%s/Gabor/%05d",dirPath,num);
+        sprintf(savePrPath,"%s/PR/%05d.png",dirPath,num);
+        sprintf(saveGaborPath,"%s/Gabor/%05d.png",dirPath,num);
 
         saveGaborImp->Save(saveGaborPath);
         savePrImp->Save(savePrPath);
