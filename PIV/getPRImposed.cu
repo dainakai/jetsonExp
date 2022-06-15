@@ -173,6 +173,8 @@ int main(int argc, char** argv){
     cv::Mat PrImp, GaborImp;
     cv::namedWindow("PR",cv::WINDOW_AUTOSIZE);
     cv::namedWindow("Gabor",cv::WINDOW_AUTOSIZE);
+    cv::moveWindow("PR",530,0);
+    cv::moveWindow("Gabor",0,0);
 
     int num = 0;
     while(!e_flag){

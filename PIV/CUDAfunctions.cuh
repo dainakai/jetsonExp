@@ -612,6 +612,8 @@ void getImgAndPIV(Spinnaker::CameraPtr pCam[2],const int imgLen, const int gridS
     cv::Mat imp2 = cv::Mat(imgLen,imgLen,CV_8U,charimp2);
     cv::namedWindow("Cam1",cv::WINDOW_AUTOSIZE);
     cv::namedWindow("Cam2",cv::WINDOW_AUTOSIZE);
+    cv::moveWindow("Cam1",0,0);
+    cv::moveWindow("Cam2",530,0);
     cv::imshow("Cam1",imp1);
     cv::imshow("Cam2",imp2);
     // int key = cv::waitKey(1000);
