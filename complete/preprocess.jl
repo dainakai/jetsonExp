@@ -82,7 +82,7 @@ end
 
 パラメータ a で与えた二次の画像変換について、ターゲット座標との差のベクトル e の a に関するヤコビアンを計算し、戻り値として返します。
 """
-function getYacobian(imgSize = 1024, gridSize = 128)
+function getYacobian(imgSize = 512, gridSize = 64)
     x = collect(gridSize+0.5:gridSize:imgSize)
     y = collect(gridSize+0.5:gridSize:imgSize)
     n = size(x)[1]
@@ -137,7 +137,7 @@ end
 
 1枚目の画像で設定する `gridx` `gridy` から2枚目の画像の `targetX` `targetY` を目的に変換して得た `procX` `procY` を計算し、`targetX` `targetY` と `procX` `procY` の差を計算したベクトル `errorVec` を返します。ヤコビアン取得のため `gridx` `gridy` も同時に返します。
 """
-function getErrorVec(vecMap, coefa, gridSize = 128, imgSize = 1024)
+function getErrorVec(vecMap, coefa, gridSize = 64, imgSize = 512)
     n = div(imgSize,gridSize)-1
     gridx = collect(gridSize+0.5:gridSize:imgSize)
     gridy = collect(gridSize+0.5:gridSize:imgSize)
@@ -288,7 +288,7 @@ end
 GPU CUDA Function
 画像配列 `image1` と `image2` のPIVマップを計算し、返します。1はx, 2はy。
 """
-function getPIVMap_GPU(image1, image2, imgLen = 1024, gridSize = 128, intrSize = 128, srchSize = 256)
+function getPIVMap_GPU(image1, image2, imgLen = 512, gridSize = 64, intrSize = 64, srchSize = 128)
     gridNum = div(imgLen, gridSize)
     corArray = CuArray{Float32}(undef,((srchSize-intrSize+1)*(gridNum-1),(srchSize-intrSize+1)*(gridNum-1)))
     vecArray = CuArray{Float32}(undef,(gridNum-1,gridNum-1,2))
@@ -317,9 +317,11 @@ function getPIVMap_GPU(image1, image2, imgLen = 1024, gridSize = 128, intrSize =
 end
 
 function main()
-    img1 = loadholo("./cam1.bmp")
+    img1 = loadholo("../PIV/imposed1.jpg")
+    # img1 = loadholo("./cam1.bmp")
     # println(img1[1,1])
-    img2 = loadholo("./cam2.bmp")
+    img2 = loadholo("../PIV/imposed2.jpg")
+    # img2 = loadholo("./cam2.bmp")
     # img1 = img1[1:512,1:512]
     # img2 = img2[1:512,1:512]
     # img1 = loadholo("./cropimg1.png")
@@ -345,8 +347,8 @@ function main()
     vecyObservable = Observable(-rotr90(vecArray[:,:,2]))
     strObservable = Observable(vec(sqrt.(vecArray[:,:,1].^2 .+ vecArray[:,:,2].^2)))
 
-    xs = [i*128 for i in 1:n]
-    ys = [i*128 for i in 1:n]
+    xs = [i*64 for i in 1:n]
+    ys = [i*64 for i in 1:n]
     arrows!(arrowax, xs,ys, vecxObservable,vecyObservable, arrowsize=10, lengthscale=20, arrowcolor = strObservable, linecolor = strObservable)
     # display(f)
 
@@ -385,4 +387,4 @@ function main()
     Images.save("./output.png",img3)
 end
 
-main()
+# main()

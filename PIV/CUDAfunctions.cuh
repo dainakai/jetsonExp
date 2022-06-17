@@ -661,8 +661,10 @@ void getPRImposed(float *floatout, unsigned char *charout, char16_t *in1, char16
     cufftComplex *dev_holo1, *dev_holo2;
     CHECK(cudaMalloc((void**)&dev_holo1,sizeof(cufftComplex)*datLen*datLen));
     CHECK(cudaMalloc((void**)&dev_holo2,sizeof(cufftComplex)*datLen*datLen));
-    CuFillArrayComp<<<gridDatLen,block>>>(dev_holo1,0.5,datLen);
-    CuFillArrayComp<<<gridDatLen,block>>>(dev_holo2,0.5,datLen);
+    CuFillArrayComp<<<gridDatLen,block>>>(dev_holo1,1.0,datLen);
+    // CuFillArrayComp<<<gridDatLen,block>>>(dev_holo1,0.5,datLen);
+    CuFillArrayComp<<<gridDatLen,block>>>(dev_holo2,1.0,datLen);
+    // CuFillArrayComp<<<gridDatLen,block>>>(dev_holo2,0.5,datLen);
     CuSetArrayCenterHalf<<<gridImgLen,block>>>(dev_holo1,dev_img2,imgLen);
     CuSetArrayCenterHalf<<<gridImgLen,block>>>(dev_holo2,dev_img1,imgLen);
 
@@ -705,7 +707,8 @@ void getPRImposed(float *floatout, unsigned char *charout, char16_t *in1, char16
 
     unsigned char *saveImp;
     CHECK(cudaMalloc((void**)&saveImp,sizeof(unsigned char)*imgLen*imgLen));
-    CuNormFloatArrToChar<<<gridImgLen,block>>>(saveImp,dev_outImp,imgLen,255.0);
+    CuNormFloatArrToChar<<<gridImgLen,block>>>(saveImp,dev_outImp,imgLen,128.0);
+    // CuNormFloatArrToChar<<<gridImgLen,block>>>(saveImp,dev_outImp,imgLen,255.0);
 
     CHECK(cudaMemcpy(charout, saveImp, sizeof(unsigned char)*imgLen*imgLen, cudaMemcpyDeviceToHost));
     
@@ -838,7 +841,8 @@ void getBackRemGaborImposed(float *floatout, unsigned char *charout, char16_t *i
     float *dev_bkg;
     CHECK(cudaMalloc((void**)&dev_bkg,sizeof(float)*imgLen*imgLen));
     CHECK(cudaMemcpy(dev_bkg,backImg,sizeof(float)*imgLen*imgLen,cudaMemcpyHostToDevice));
-    CuBackRem<<<gridImgLen,block>>>(dev_img,dev_bkg,0.5,imgLen);
+    CuBackRem<<<gridImgLen,block>>>(dev_img,dev_bkg,1.0,imgLen);
+    // CuBackRem<<<gridImgLen,block>>>(dev_img,dev_bkg,0.5,imgLen);
     cudaFree(dev_bkg);
 
     cufftComplex *dev_holo;
@@ -880,7 +884,8 @@ void getBackRemGaborImposed(float *floatout, unsigned char *charout, char16_t *i
 
     unsigned char *saveImp;
     CHECK(cudaMalloc((void**)&saveImp,sizeof(unsigned char)*imgLen*imgLen));
-    CuNormFloatArrToChar<<<gridImgLen,block>>>(saveImp,dev_outImp,imgLen,255.0);
+    CuNormFloatArrToChar<<<gridImgLen,block>>>(saveImp,dev_outImp,imgLen,128.0);
+    // CuNormFloatArrToChar<<<gridImgLen,block>>>(saveImp,dev_outImp,imgLen,255.0);
 
     CHECK(cudaMemcpy(charout, saveImp, sizeof(unsigned char)*imgLen*imgLen, cudaMemcpyDeviceToHost));
 
