@@ -197,7 +197,7 @@ int main(int argc, char** argv){
         getNewImage(charimg2,charimg2,coefa,imgLen);
 
         getPRImposed(outPrImp,outPrCImp,charimg1,charimg2,bImg1,bImg2,d_transF,d_transInt,d_transPR,d_transPRInv,imgLen,ImposedLoop,prLoop,blockSize);
-        getBackRemGaborImposed(outGaborImp,outGaborCImp,charimg1,bImg1,d_transF,d_transInt,imgLen,ImposedLoop,blockSize);
+        getBackRemGaborImposed(outGaborImp,outGaborCImp,charimg2,bImg2,d_transF,d_transInt,imgLen,ImposedLoop,blockSize);
 
         saveGaborImp->Convert(Spinnaker::PixelFormat_Mono8);
         savePrImp->Convert(Spinnaker::PixelFormat_Mono8);

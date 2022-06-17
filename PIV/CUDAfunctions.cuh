@@ -944,7 +944,7 @@ void getBackRemGaborImposed(float *floatout, unsigned char *charout, char16_t *i
 
     cufftComplex *dev_holo;
     CHECK(cudaMalloc((void**)&dev_holo,sizeof(cufftComplex)*datLen*datLen));
-    CuFillArrayComp<<<gridDatLen,block>>>(dev_holo,meanImg,datLen);
+    CuFillArrayComp<<<gridDatLen,block>>>(dev_holo,0.5,datLen);
     CuSetArrayCenterHalf<<<gridImgLen,block>>>(dev_holo,dev_img,imgLen);
 
     float *dev_imp;
