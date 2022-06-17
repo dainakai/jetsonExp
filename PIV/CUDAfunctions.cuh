@@ -581,6 +581,27 @@ void getNewImage(char16_t *out, char16_t *img, float a[12], int imgLen){
     }
 }
 
+void getNewFloatImage(float *out, float *img, float a[12], int imgLen){
+    float bkg = 0;
+    for (int j = 0; j < imgLen*imgLen; j++){
+        bkg += (float)img[j];
+    }
+    bkg = (float)bkg/((float)(imgLen*imgLen));
+
+
+    for (int i = 0; i < imgLen; i++){
+        for (int j = 0; j < imgLen; j++){
+            int tmpX = (int)(round(a[0]+a[1]*j+a[2]*i+a[3]*j*j+a[4]*i*j+a[5]*i*i));
+            int tmpY = (int)(round(a[6]+a[7]*j+a[8]*i+a[9]*j*j+a[10]*i*j+a[11]*i*i));
+            if (tmpX>=0 && tmpX<imgLen && tmpY>=0 && tmpY <imgLen){
+                out[i*imgLen+j] = img[tmpY*imgLen+tmpX];
+            }else{
+                out[i*imgLen+j] = (float)bkg;
+            }
+        }
+    }
+}
+
 void getImgAndBundleAdjCheck(Spinnaker::CameraPtr pCam[2],const int imgLen, const int gridSize, const int intrSize, const int srchSize, const float zF, const float dz, const float waveLen, const float dx, const int blockSize){
     // Constant Declaretion
     const int datLen = imgLen*2;
@@ -880,6 +901,9 @@ void getPRImposed(float *floatout, unsigned char *charout, char16_t *in1, char16
 }
 
 void getBackGrounds(float *backImg1,float *backImg2, unsigned char *cBackImg1, unsigned char *cBackImg2, Spinnaker::CameraPtr pCam[2], int imgLen, int loopCount){
+    float coefa[12];
+    char *coefPath = "./coefa.dat";
+    readCoef(coefPath,coefa);
     Spinnaker::ImagePtr pImg1, pImg2;
     char16_t *cImg1, *cImg2;
     float *fImg1, *fImg2;
@@ -903,6 +927,8 @@ void getBackGrounds(float *backImg1,float *backImg2, unsigned char *cBackImg1, u
         }
     }
     std::cout << fImg1[0] << std::endl;
+
+    getNewFloatImage(fImg2,fImg2,coefa,imgLen);
 
     for (int idx = 0; idx < imgLen*imgLen; idx++){
         fImg1[idx] /= (float)(loopCount)*65535.0;

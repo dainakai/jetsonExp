@@ -52,7 +52,7 @@ int main(int argc, char** argv){
     const int ImposedLoop = 100;
 
     const float prDist = 60.0*1000.0; // 60 mm
-    const float zF = 1000*60.0;
+    const float zF = 60.0*1000.0;
     const float dz = 50.0;
     const float waveLen = 0.532;
     const float dx = 3.45/0.5;
