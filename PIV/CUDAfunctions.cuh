@@ -458,107 +458,6 @@ void getGaborImposed(float *floatout, unsigned char *charout, char16_t *in, cuff
     CHECK(cudaFree(saveImp));
 }
 
-void getImgAndPIV(Spinnaker::CameraPtr pCam[2],const int imgLen, const int gridSize, const int intrSize, const int srchSize, const float zF, const float dz, const float waveLen, const float dx, const int blockSize){
-    // Constant Declaration
-    const int datLen = imgLen*2;
-    dim3 grid((int)ceil((float)datLen/(float)blockSize),(int)ceil((float)datLen/(float)blockSize)), block(blockSize,blockSize);
-
-    // Gabor Init
-    float *d_sqr;
-    cufftComplex *d_transF, *d_transF2, *d_transInt;
-    CHECK(cudaMalloc((void **)&d_sqr, sizeof(float)*datLen*datLen));
-    CHECK(cudaMalloc((void **)&d_transF, sizeof(cufftComplex)*datLen*datLen));
-    CHECK(cudaMalloc((void **)&d_transF2, sizeof(cufftComplex)*datLen*datLen));
-    CHECK(cudaMalloc((void **)&d_transInt, sizeof(cufftComplex)*datLen*datLen));
-    CuTransSqr<<<grid,block>>>(d_sqr,datLen,waveLen,dx);
-    CuTransFunc<<<grid,block>>>(d_transF,d_sqr,zF,waveLen,datLen,dx);
-    CuTransFunc<<<grid,block>>>(d_transF2,d_sqr,zF*2.0,waveLen,datLen,dx);
-    CuTransFunc<<<grid,block>>>(d_transInt,d_sqr,dz,waveLen,datLen,dx);
-    std::cout << "Gabor Init OK" << std::endl;
-
-    // Camera Init
-    Spinnaker::CameraPtr cam1 = pCam[0];
-    Spinnaker::CameraPtr cam2 = pCam[1];
-    cam1->BeginAcquisition();
-    cam2->BeginAcquisition();
-    cam1->TriggerSoftware.Execute();
-    Spinnaker::ImagePtr pimg1 = cam1->GetNextImage();
-    Spinnaker::ImagePtr pimg2 = cam2->GetNextImage();
-    cam1->EndAcquisition();
-    cam2->EndAcquisition();
-    // unsigned char *charimg1 = (unsigned char *)pimg1->GetData();
-    char16_t *charimg1 = (char16_t *)pimg1->GetData();
-    // unsigned char *charimg2 = (unsigned char *)pimg2->GetData();
-    char16_t *charimg2 = (char16_t *)pimg2->GetData();
-    std::cout << (int)charimg1[0] << std::endl;
-
-    float *floatimp1, *floatimp2;
-    floatimp1 = (float *)malloc(sizeof(float)*imgLen*imgLen);
-    floatimp2 = (float *)malloc(sizeof(float)*imgLen*imgLen);
-
-    unsigned char *charimp1, *charimp2;
-    charimp1 = (unsigned char *)malloc(sizeof(unsigned char)*imgLen*imgLen);
-    charimp2 = (unsigned char *)malloc(sizeof(unsigned char)*imgLen*imgLen);
-
-
-
-    //Save Imposed Image
-    Spinnaker::ImagePtr saveImg1 = Spinnaker::Image::Create(imgLen,imgLen,0,0,Spinnaker::PixelFormatEnums::PixelFormat_Mono8,charimp1);
-    getGaborImposed(floatimp1,charimp1,charimg1,d_transF2,d_transInt,imgLen,10);
-    saveImg1->Convert(Spinnaker::PixelFormat_Mono8);
-    
-    Spinnaker::ImagePtr saveImg2 = Spinnaker::Image::Create(imgLen,imgLen,0,0,Spinnaker::PixelFormatEnums::PixelFormat_Mono8,charimp2);
-    getGaborImposed(floatimp2,charimp2,charimg2,d_transF,d_transInt,imgLen,10);
-    saveImg2->Convert(Spinnaker::PixelFormat_Mono8);
-
-    saveImg1->Save("./imposed1.jpg");
-    saveImg2->Save("./imposed2.jpg");
-
-    std::cout << "getGaborImposed OK" << std::endl;
-
-    // Original image
-    pimg1->Convert(Spinnaker::PixelFormat_Mono8);
-    pimg2->Convert(Spinnaker::PixelFormat_Mono8);
-    pimg1->Save("./outimg1.jpg");
-    pimg2->Save("./outimg2.jpg");
-    // pimg1->Release();
-    // pimg2->Release();
-
-    // Imshow visualization
-    cv::Mat imp1 = cv::Mat(imgLen,imgLen,CV_8U,charimp1);
-    cv::Mat imp2 = cv::Mat(imgLen,imgLen,CV_8U,charimp2);
-    cv::namedWindow("Cam1",cv::WINDOW_AUTOSIZE);
-    cv::namedWindow("Cam2",cv::WINDOW_AUTOSIZE);
-    cv::moveWindow("Cam1",0,0);
-    cv::moveWindow("Cam2",530,0);
-    cv::imshow("Cam1",imp1);
-    cv::imshow("Cam2",imp2);
-    cv::waitKey(10);
-    // int key = cv::waitKey(1000);
-    // if (key>=0) exit(0);
-
-    // PIV
-    int gridNum = imgLen/gridSize;
-    float vecArrayX[(gridNum-1)*(gridNum-1)];
-    float vecArrayY[(gridNum-1)*(gridNum-1)];
-    float *pvecArrX = (float *)vecArrayX;
-    float *pvecArrY = (float *)vecArrayY;
-    getPIVMapOnGPU(pvecArrX,pvecArrY,floatimp1,floatimp2,imgLen,gridSize,intrSize,srchSize,blockSize);
-    saveVecArray(pvecArrX,pvecArrY,gridSize,gridNum);
-    plotVecFieldOnGnuplot(imgLen);
-
-    // Finalize
-    free(floatimp1);
-    free(floatimp2);
-    free(charimp1);
-    free(charimp2);
-    CHECK(cudaFree(d_sqr));
-    CHECK(cudaFree(d_transF));
-    CHECK(cudaFree(d_transF2));
-    CHECK(cudaFree(d_transInt));
-
-    // std::cout << "OK" << std::endl;
-}
 
 void getNewImage(char16_t *out, char16_t *img, float a[12], int imgLen){
     long int *tmpImg;
@@ -615,96 +514,7 @@ void getNewFloatImage(float *out, float *img, float a[12], int imgLen){
     free(tmpImg);
 }
 
-void getImgAndBundleAdjCheck(Spinnaker::CameraPtr pCam[2],const int imgLen, const int gridSize, const int intrSize, const int srchSize, const float zF, const float dz, const float waveLen, const float dx, const int blockSize){
-    // Constant Declaretion
-    const int datLen = imgLen*2;
-    dim3 grid((int)ceil((float)datLen/(float)blockSize),(int)ceil((float)datLen/(float)blockSize)), block(blockSize,blockSize);
 
-    // Gabor Init
-    float *d_sqr;
-    cufftComplex *d_transF, *d_transF2, *d_transInt;
-    CHECK(cudaMalloc((void **)&d_sqr, sizeof(float)*datLen*datLen));
-    CHECK(cudaMalloc((void **)&d_transF, sizeof(cufftComplex)*datLen*datLen));
-    CHECK(cudaMalloc((void **)&d_transF2, sizeof(cufftComplex)*datLen*datLen));
-    CHECK(cudaMalloc((void **)&d_transInt, sizeof(cufftComplex)*datLen*datLen));
-    CuTransSqr<<<grid,block>>>(d_sqr,datLen,waveLen,dx);
-    CuTransFunc<<<grid,block>>>(d_transF,d_sqr,zF,waveLen,datLen,dx);
-    CuTransFunc<<<grid,block>>>(d_transF2,d_sqr,zF*2.0,waveLen,datLen,dx);
-    CuTransFunc<<<grid,block>>>(d_transInt,d_sqr,dz,waveLen,datLen,dx);
-    std::cout << "Gabor Init OK" << std::endl;
-
-    // Camera Init
-    Spinnaker::CameraPtr cam1 = pCam[0];
-    Spinnaker::CameraPtr cam2 = pCam[1];
-    cam1->BeginAcquisition();
-    cam2->BeginAcquisition();
-    cam1->TriggerSoftware.Execute();
-    Spinnaker::ImagePtr pimg1 = cam1->GetNextImage();
-    Spinnaker::ImagePtr pimg2 = cam2->GetNextImage();
-    cam1->EndAcquisition();
-    cam2->EndAcquisition();
-    // unsigned char *charimg1 = (unsigned char *)pimg1->GetData();
-    char16_t *charimg1 = (char16_t *)pimg1->GetData();
-    // unsigned char *charimg2 = (unsigned char *)pimg2->GetData();
-    char16_t *charimg2 = (char16_t *)pimg2->GetData();
-
-    // Bundle Adj Check
-    float coefa[12];
-    char *coefPath = "./coefa.dat";
-    readCoef(coefPath,coefa);
-    char16_t *charimg3;
-    charimg3 = (char16_t *)malloc(sizeof(char16_t)*imgLen*imgLen);
-    getNewImage(charimg3,charimg2,coefa,imgLen);
-
-    float *floatimp1, *floatimp2;
-    floatimp1 = (float *)malloc(sizeof(float)*imgLen*imgLen);
-    floatimp2 = (float *)malloc(sizeof(float)*imgLen*imgLen);
-
-    unsigned char *charimp1, *charimp2;
-    charimp1 = (unsigned char *)malloc(sizeof(unsigned char)*imgLen*imgLen);
-    charimp2 = (unsigned char *)malloc(sizeof(unsigned char)*imgLen*imgLen);
-
-    //Save Imposed Image
-    Spinnaker::ImagePtr saveImg1 = Spinnaker::Image::Create(imgLen,imgLen,0,0,Spinnaker::PixelFormatEnums::PixelFormat_Mono8,charimp1);
-    getGaborImposed(floatimp1,charimp1,charimg1,d_transF2,d_transInt,imgLen,500);
-    saveImg1->Convert(Spinnaker::PixelFormat_Mono8);
-    
-    Spinnaker::ImagePtr saveImg2 = Spinnaker::Image::Create(imgLen,imgLen,0,0,Spinnaker::PixelFormatEnums::PixelFormat_Mono8,charimp2);
-    getGaborImposed(floatimp2,charimp2,charimg3,d_transF,d_transInt,imgLen,500);
-    saveImg2->Convert(Spinnaker::PixelFormat_Mono8);
-
-    saveImg1->Save("./bundle1.jpg");
-    saveImg2->Save("./bundle2.jpg");
-
-    std::cout << "getGaborImposed OK" << std::endl;
-
-    // Original image
-    // pimg1->Convert(Spinnaker::PixelFormat_Mono8);
-    // pimg2->Convert(Spinnaker::PixelFormat_Mono8);
-    // pimg1->Save("./outimg1.jpg");
-    // pimg1->Save("./outimg2.jpg");
-
-    // PIV
-    int gridNum = imgLen/gridSize;
-    float vecArrayX[(gridNum-1)*(gridNum-1)];
-    float vecArrayY[(gridNum-1)*(gridNum-1)];
-    float *pvecArrX = (float *)vecArrayX;
-    float *pvecArrY = (float *)vecArrayY;
-    getPIVMapOnGPU(pvecArrX,pvecArrY,floatimp1,floatimp2,imgLen,gridSize,intrSize,srchSize,blockSize);
-    saveVecArray(pvecArrX,pvecArrY,gridSize,gridNum);
-    plotVecFieldOnGnuplot(imgLen);
-
-    // Finalize
-    free(floatimp1);
-    free(floatimp2);
-    free(charimp1);
-    free(charimp2);
-    free(charimg3);
-    CHECK(cudaFree(d_sqr));
-    CHECK(cudaFree(d_transF));
-    CHECK(cudaFree(d_transF2));
-    CHECK(cudaFree(d_transInt));
-}
 
 __global__ void CuFloatSqrt(float *dst, cufftComplex *src, int datLen){
 	int x = blockIdx.x*blockDim.x + threadIdx.x;
@@ -914,6 +724,50 @@ void getPRImposed(float *floatout, unsigned char *charout, char16_t *in1, char16
     CHECK(cudaFree(saveImp));
 }
 
+void getBackGroundsWithoutBundle(float *backImg1,float *backImg2, unsigned char *cBackImg1, unsigned char *cBackImg2, Spinnaker::CameraPtr pCam[2], int imgLen, int loopCount){
+    Spinnaker::ImagePtr pImg1, pImg2;
+    char16_t *cImg1, *cImg2;
+    float *fImg1, *fImg2;
+    fImg1 = (float *)calloc(imgLen*imgLen,sizeof(float));
+    fImg2 = (float *)calloc(imgLen*imgLen,sizeof(float));
+    for (int itr = 0; itr < loopCount; itr++)
+    {
+        std::cout << "iteration: " << itr << std::endl;
+        pCam[0]->BeginAcquisition();
+        pCam[1]->BeginAcquisition();
+        pCam[0]->TriggerSoftware.Execute();
+        pImg1 = pCam[0]->GetNextImage();
+        pImg2 = pCam[1]->GetNextImage();
+        pCam[0]->EndAcquisition();
+        pCam[1]->EndAcquisition();
+        cImg1 = (char16_t *)pImg1->GetData();
+        cImg2 = (char16_t *)pImg2->GetData();
+        for (int idx = 0; idx < imgLen*imgLen; idx++){
+            fImg1[idx] += (float)((int)cImg1[idx]);
+            fImg2[idx] += (float)((int)cImg2[idx]);
+        }
+    }
+    std::cout << fImg1[0] << std::endl;
+
+    // getNewFloatImage(fImg2,fImg2,coefa,imgLen);
+
+    for (int idx = 0; idx < imgLen*imgLen; idx++){
+        fImg1[idx] /= (float)(loopCount)*65535.0;
+        fImg2[idx] /= (float)(loopCount)*65535.0;
+    }
+
+    for (int idx = 0; idx < imgLen*imgLen; idx++){
+        backImg1[idx] = (float)fImg1[idx];
+        backImg2[idx] = (float)fImg2[idx];
+        cBackImg1[idx] = (unsigned char)(fImg1[idx]*255.0);
+        cBackImg2[idx] = (unsigned char)(fImg2[idx]*255.0);
+    }
+
+    free(fImg1);
+    free(fImg2);
+
+}
+
 void getBackGrounds(float *backImg1,float *backImg2, unsigned char *cBackImg1, unsigned char *cBackImg2, Spinnaker::CameraPtr pCam[2], int imgLen, int loopCount){
     float coefa[12];
     char *coefPath = "./coefa.dat";
@@ -1039,4 +893,197 @@ void getBackRemGaborImposed(float *floatout, unsigned char *charout, char16_t *i
     CHECK(cudaFree(tmp_imp));
     CHECK(cudaFree(dev_outImp));
     CHECK(cudaFree(saveImp));
+}
+
+void getImgAndPIV(Spinnaker::CameraPtr pCam[2],float *backImg1, float *backImg2,const int imgLen, const int gridSize, const int intrSize, const int srchSize, const float zF, const float dz, const float waveLen, const float dx,const int loopCount, const int blockSize){
+    // Constant Declaration
+    const int datLen = imgLen*2;
+    dim3 grid((int)ceil((float)datLen/(float)blockSize),(int)ceil((float)datLen/(float)blockSize)), block(blockSize,blockSize);
+
+    // Gabor Init
+    float *d_sqr;
+    cufftComplex *d_transF, *d_transF2, *d_transInt;
+    CHECK(cudaMalloc((void **)&d_sqr, sizeof(float)*datLen*datLen));
+    CHECK(cudaMalloc((void **)&d_transF, sizeof(cufftComplex)*datLen*datLen));
+    CHECK(cudaMalloc((void **)&d_transF2, sizeof(cufftComplex)*datLen*datLen));
+    CHECK(cudaMalloc((void **)&d_transInt, sizeof(cufftComplex)*datLen*datLen));
+    CuTransSqr<<<grid,block>>>(d_sqr,datLen,waveLen,dx);
+    CuTransFunc<<<grid,block>>>(d_transF,d_sqr,zF,waveLen,datLen,dx);
+    CuTransFunc<<<grid,block>>>(d_transF2,d_sqr,zF*2.0,waveLen,datLen,dx);
+    CuTransFunc<<<grid,block>>>(d_transInt,d_sqr,dz,waveLen,datLen,dx);
+    std::cout << "Gabor Init OK" << std::endl;
+
+    // Camera Init
+    Spinnaker::CameraPtr cam1 = pCam[0];
+    Spinnaker::CameraPtr cam2 = pCam[1];
+    cam1->BeginAcquisition();
+    cam2->BeginAcquisition();
+    cam1->TriggerSoftware.Execute();
+    Spinnaker::ImagePtr pimg1 = cam1->GetNextImage();
+    Spinnaker::ImagePtr pimg2 = cam2->GetNextImage();
+    cam1->EndAcquisition();
+    cam2->EndAcquisition();
+    // unsigned char *charimg1 = (unsigned char *)pimg1->GetData();
+    char16_t *charimg1 = (char16_t *)pimg1->GetData();
+    // unsigned char *charimg2 = (unsigned char *)pimg2->GetData();
+    char16_t *charimg2 = (char16_t *)pimg2->GetData();
+    std::cout << (int)charimg1[0] << std::endl;
+
+    float *floatimp1, *floatimp2;
+    floatimp1 = (float *)malloc(sizeof(float)*imgLen*imgLen);
+    floatimp2 = (float *)malloc(sizeof(float)*imgLen*imgLen);
+
+    unsigned char *charimp1, *charimp2;
+    charimp1 = (unsigned char *)malloc(sizeof(unsigned char)*imgLen*imgLen);
+    charimp2 = (unsigned char *)malloc(sizeof(unsigned char)*imgLen*imgLen);
+
+
+
+    //Save Imposed Image
+    Spinnaker::ImagePtr saveImg1 = Spinnaker::Image::Create(imgLen,imgLen,0,0,Spinnaker::PixelFormatEnums::PixelFormat_Mono8,charimp1);
+    getBackRemGaborImposed(floatimp1,charimp1,charimg1,backImg1,d_transF2,d_transInt,imgLen,loopCount);
+    saveImg1->Convert(Spinnaker::PixelFormat_Mono8);
+    
+    Spinnaker::ImagePtr saveImg2 = Spinnaker::Image::Create(imgLen,imgLen,0,0,Spinnaker::PixelFormatEnums::PixelFormat_Mono8,charimp2);
+    getBackRemGaborImposed(floatimp2,charimp2,charimg2,backImg2,d_transF,d_transInt,imgLen,loopCount);
+    saveImg2->Convert(Spinnaker::PixelFormat_Mono8);
+
+    saveImg1->Save("./imposed1.jpg");
+    saveImg2->Save("./imposed2.jpg");
+
+    std::cout << "getGaborImposed OK" << std::endl;
+
+    // Original image
+    pimg1->Convert(Spinnaker::PixelFormat_Mono8);
+    pimg2->Convert(Spinnaker::PixelFormat_Mono8);
+    pimg1->Save("./outimg1.jpg");
+    pimg2->Save("./outimg2.jpg");
+    // pimg1->Release();
+    // pimg2->Release();
+
+    // Imshow visualization
+    cv::Mat imp1 = cv::Mat(imgLen,imgLen,CV_8U,charimp1);
+    cv::Mat imp2 = cv::Mat(imgLen,imgLen,CV_8U,charimp2);
+    cv::namedWindow("Cam1",cv::WINDOW_AUTOSIZE);
+    cv::namedWindow("Cam2",cv::WINDOW_AUTOSIZE);
+    cv::moveWindow("Cam1",0,0);
+    cv::moveWindow("Cam2",530,0);
+    cv::imshow("Cam1",imp1);
+    cv::imshow("Cam2",imp2);
+    cv::waitKey(10);
+    // int key = cv::waitKey(1000);
+    // if (key>=0) exit(0);
+
+    // PIV
+    int gridNum = imgLen/gridSize;
+    float vecArrayX[(gridNum-1)*(gridNum-1)];
+    float vecArrayY[(gridNum-1)*(gridNum-1)];
+    float *pvecArrX = (float *)vecArrayX;
+    float *pvecArrY = (float *)vecArrayY;
+    getPIVMapOnGPU(pvecArrX,pvecArrY,floatimp1,floatimp2,imgLen,gridSize,intrSize,srchSize,blockSize);
+    saveVecArray(pvecArrX,pvecArrY,gridSize,gridNum);
+    plotVecFieldOnGnuplot(imgLen);
+
+    // Finalize
+    free(floatimp1);
+    free(floatimp2);
+    free(charimp1);
+    free(charimp2);
+    CHECK(cudaFree(d_sqr));
+    CHECK(cudaFree(d_transF));
+    CHECK(cudaFree(d_transF2));
+    CHECK(cudaFree(d_transInt));
+
+    // std::cout << "OK" << std::endl;
+}
+
+void getImgAndBundleAdjCheck(Spinnaker::CameraPtr pCam[2],float *backImg1, float *backImg2,const int imgLen, const int gridSize, const int intrSize, const int srchSize, const float zF, const float dz, const float waveLen, const float dx, const int blockSize){
+    // Constant Declaretion
+    const int datLen = imgLen*2;
+    dim3 grid((int)ceil((float)datLen/(float)blockSize),(int)ceil((float)datLen/(float)blockSize)), block(blockSize,blockSize);
+
+    // Gabor Init
+    float *d_sqr;
+    cufftComplex *d_transF, *d_transF2, *d_transInt;
+    CHECK(cudaMalloc((void **)&d_sqr, sizeof(float)*datLen*datLen));
+    CHECK(cudaMalloc((void **)&d_transF, sizeof(cufftComplex)*datLen*datLen));
+    CHECK(cudaMalloc((void **)&d_transF2, sizeof(cufftComplex)*datLen*datLen));
+    CHECK(cudaMalloc((void **)&d_transInt, sizeof(cufftComplex)*datLen*datLen));
+    CuTransSqr<<<grid,block>>>(d_sqr,datLen,waveLen,dx);
+    CuTransFunc<<<grid,block>>>(d_transF,d_sqr,zF,waveLen,datLen,dx);
+    CuTransFunc<<<grid,block>>>(d_transF2,d_sqr,zF*2.0,waveLen,datLen,dx);
+    CuTransFunc<<<grid,block>>>(d_transInt,d_sqr,dz,waveLen,datLen,dx);
+    std::cout << "Gabor Init OK" << std::endl;
+
+    // Camera Init
+    Spinnaker::CameraPtr cam1 = pCam[0];
+    Spinnaker::CameraPtr cam2 = pCam[1];
+    cam1->BeginAcquisition();
+    cam2->BeginAcquisition();
+    cam1->TriggerSoftware.Execute();
+    Spinnaker::ImagePtr pimg1 = cam1->GetNextImage();
+    Spinnaker::ImagePtr pimg2 = cam2->GetNextImage();
+    cam1->EndAcquisition();
+    cam2->EndAcquisition();
+    // unsigned char *charimg1 = (unsigned char *)pimg1->GetData();
+    char16_t *charimg1 = (char16_t *)pimg1->GetData();
+    // unsigned char *charimg2 = (unsigned char *)pimg2->GetData();
+    char16_t *charimg2 = (char16_t *)pimg2->GetData();
+
+    // Bundle Adj Check
+    float coefa[12];
+    char *coefPath = "./coefa.dat";
+    readCoef(coefPath,coefa);
+    char16_t *charimg3;
+    charimg3 = (char16_t *)malloc(sizeof(char16_t)*imgLen*imgLen);
+    getNewImage(charimg3,charimg2,coefa,imgLen);
+
+    float *floatimp1, *floatimp2;
+    floatimp1 = (float *)malloc(sizeof(float)*imgLen*imgLen);
+    floatimp2 = (float *)malloc(sizeof(float)*imgLen*imgLen);
+
+    unsigned char *charimp1, *charimp2;
+    charimp1 = (unsigned char *)malloc(sizeof(unsigned char)*imgLen*imgLen);
+    charimp2 = (unsigned char *)malloc(sizeof(unsigned char)*imgLen*imgLen);
+
+    //Save Imposed Image
+    Spinnaker::ImagePtr saveImg1 = Spinnaker::Image::Create(imgLen,imgLen,0,0,Spinnaker::PixelFormatEnums::PixelFormat_Mono8,charimp1);
+    getBackRemGaborImposed(floatimp1,charimp1,charimg1,backImg1,d_transF2,d_transInt,imgLen,500);
+    saveImg1->Convert(Spinnaker::PixelFormat_Mono8);
+    
+    Spinnaker::ImagePtr saveImg2 = Spinnaker::Image::Create(imgLen,imgLen,0,0,Spinnaker::PixelFormatEnums::PixelFormat_Mono8,charimp2);
+    getBackRemGaborImposed(floatimp2,charimp2,charimg3,backImg2,d_transF,d_transInt,imgLen,500);
+    saveImg2->Convert(Spinnaker::PixelFormat_Mono8);
+
+    saveImg1->Save("./bundle1.jpg");
+    saveImg2->Save("./bundle2.jpg");
+
+    std::cout << "getGaborImposed OK" << std::endl;
+
+    // Original image
+    // pimg1->Convert(Spinnaker::PixelFormat_Mono8);
+    // pimg2->Convert(Spinnaker::PixelFormat_Mono8);
+    // pimg1->Save("./outimg1.jpg");
+    // pimg1->Save("./outimg2.jpg");
+
+    // PIV
+    int gridNum = imgLen/gridSize;
+    float vecArrayX[(gridNum-1)*(gridNum-1)];
+    float vecArrayY[(gridNum-1)*(gridNum-1)];
+    float *pvecArrX = (float *)vecArrayX;
+    float *pvecArrY = (float *)vecArrayY;
+    getPIVMapOnGPU(pvecArrX,pvecArrY,floatimp1,floatimp2,imgLen,gridSize,intrSize,srchSize,blockSize);
+    saveVecArray(pvecArrX,pvecArrY,gridSize,gridNum);
+    plotVecFieldOnGnuplot(imgLen);
+
+    // Finalize
+    free(floatimp1);
+    free(floatimp2);
+    free(charimp1);
+    free(charimp2);
+    free(charimg3);
+    CHECK(cudaFree(d_sqr));
+    CHECK(cudaFree(d_transF));
+    CHECK(cudaFree(d_transF2));
+    CHECK(cudaFree(d_transInt));
 }
