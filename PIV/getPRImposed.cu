@@ -47,7 +47,7 @@ int main(int argc, char** argv){
     const int srchSize = imgLen/4;
     const int gridNum = (int)(imgLen/gridSize);
 
-    const int prLoop = 1;
+    const int prLoop = 20;
     const int backgroundLoops = 30;
     const int ImposedLoop = 100;
 
@@ -100,8 +100,8 @@ int main(int argc, char** argv){
     CHECK(cudaMalloc((void **)&d_transPR, sizeof(cufftComplex)*datLen*datLen));
     CHECK(cudaMalloc((void **)&d_transPRInv, sizeof(cufftComplex)*datLen*datLen));
     CuTransSqr<<<grid,block>>>(d_sqr,datLen,waveLen,dx);
-    CuTransFunc<<<grid,block>>>(d_transF,d_sqr,zF,waveLen,datLen,dx);
-    CuTransFunc<<<grid,block>>>(d_transInt,d_sqr,dz,waveLen,datLen,dx);
+    CuTransFunc<<<grid,block>>>(d_transF,d_sqr,-zF,waveLen,datLen,dx);
+    CuTransFunc<<<grid,block>>>(d_transInt,d_sqr,-dz,waveLen,datLen,dx);
     CuTransFunc<<<grid,block>>>(d_transPR,d_sqr,prDist,waveLen,datLen,dx);
     CuTransFunc<<<grid,block>>>(d_transPRInv,d_sqr,-1.0*prDist,waveLen,datLen,dx);
     std::cout << "PR Init OK" << std::endl;
@@ -178,7 +178,7 @@ int main(int argc, char** argv){
     cv::Mat PrImp, GaborImp;
     cv::namedWindow("PR",cv::WINDOW_AUTOSIZE);
     cv::namedWindow("Gabor",cv::WINDOW_AUTOSIZE);
-    cv::moveWindow("PR",530,0);
+    cv::moveWindow("PR",512,0);
     cv::moveWindow("Gabor",0,0);
 
     int num = 0;

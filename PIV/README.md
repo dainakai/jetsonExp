@@ -8,11 +8,11 @@ bash cmpGainAdj.sh
 ```
 ./gainAdjLoop OffsetX OffsetY
 ```
-で実行します．```OffsetX``` および ```OffsetY``` は Camera 2 の適当なセンサーオフセットであり，デフォルトの推奨値は```OffsetX = 592```，```OffsetY = 514```です．
+で実行します．```OffsetX``` および ```OffsetY``` は Camera 2 の適当なセンサーオフセットであり，デフォルトの推奨値は```OffsetX = 604```，```OffsetY = 514```です．
 
 <font color="Orange">カメラ位置調整等によりセンサーオフセットが大きく変化したときは，記録用に以下を編集してください．</font>
 ```
-./gainAdjLoop 592 514
+./gainAdjLoop 604 514
 ```
 
 ここで，Camera 1 はシリアルナンバー末尾が5の光軸上にない方のカメラであり，Camera 2 は末尾が6で光軸上にあるカメラです．センサーオフセットは手順2で調整するため，手順1および2は相互補完的に運用してください．
@@ -34,7 +34,7 @@ xdg-open vecArrayPlot.pdf
 
 <font color="Orange">カメラ位置調整等によりセンサーオフセットが大きく変化したときは，記録用に以下を編集してください．</font>
 ```
-./PIVloop 592 514
+./PIVloop 604 514
 ```
 センサーオフセットの調整は以下の手順で行うと良いでしょう．
 
@@ -81,7 +81,7 @@ bash cmpBundle.sh
 ```
 <font color="Orange">カメラ位置調整等によりセンサーオフセットが大きく変化したときは，記録用に以下を編集してください．</font>
 ```
-./bundleAdjCheck 592 514
+./bundleAdjCheck 604 514
 ```
 
 ## 7. PR，Gabor再生
@@ -97,7 +97,7 @@ bash cmpPRImp.sh
 ```
 <font color="Orange">カメラ位置調整等によりセンサーオフセットが大きく変化したときは，記録用に以下を編集してください．</font>
 ```
-./getPRImposed 592 514
+./getPRImposed 604 514
 ```
 
 再生像は，通常の8bit画像として```./ImposedOutput/MMDD/MMDDHHMM/```に保存されます．

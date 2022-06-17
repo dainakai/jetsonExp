@@ -616,7 +616,17 @@ __global__ void CuBackRem(float *out, float *back, float addConst, int imgLen){
     int y = blockIdx.y*blockDim.y + threadIdx.y;
 
     if( (x < imgLen) && (y < imgLen) ){
-        out[y*imgLen + x] = out[y*imgLen+x]-back[y*imgLen+x]+addConst;
+        out[y*imgLen + x] = out[y*imgLen+x]/back[y*imgLen+x];
+        // out[y*imgLen + x] = out[y*imgLen+x]-back[y*imgLen+x]+addConst;
+    }
+}
+
+__global__ void CuFloatDiv(float *out, float value, int imgLen){
+	int x = blockIdx.x*blockDim.x + threadIdx.x;
+    int y = blockIdx.y*blockDim.y + threadIdx.y;
+
+    if( (x < imgLen) && (y < imgLen) ){
+        out[y*imgLen + x] /= value;
     }
 }
 
@@ -652,8 +662,13 @@ void getPRImposed(float *floatout, unsigned char *charout, char16_t *in1, char16
     CHECK(cudaMalloc((void**)&dev_bkg2,sizeof(float)*imgLen*imgLen));
     CHECK(cudaMemcpy(dev_bkg1,backImg1,sizeof(float)*imgLen*imgLen,cudaMemcpyHostToDevice));
     CHECK(cudaMemcpy(dev_bkg2,backImg2,sizeof(float)*imgLen*imgLen,cudaMemcpyHostToDevice));
-    CuBackRem<<<gridImgLen,block>>>(dev_img1,dev_bkg1,0.5,imgLen);
-    CuBackRem<<<gridImgLen,block>>>(dev_img2,dev_bkg2,0.5,imgLen);    
+    CuBackRem<<<gridImgLen,block>>>(dev_img1,dev_bkg1,meanImg1,imgLen);
+    // CuBackRem<<<gridImgLen,block>>>(dev_img1,dev_bkg1,0.5,imgLen);
+    CuBackRem<<<gridImgLen,block>>>(dev_img2,dev_bkg2,meanImg2,imgLen);
+    // CuBackRem<<<gridImgLen,block>>>(dev_img2,dev_bkg2,0.5,imgLen);  
+    // CuFloatDiv<<<gridImgLen,block>>>(dev_img1,meanImg1,imgLen);
+    // CuFloatDiv<<<gridImgLen,block>>>(dev_img2,meanImg2,imgLen);
+
     cudaFree(dev_bkg1);
     cudaFree(dev_bkg2);
 
@@ -847,7 +862,8 @@ void getBackRemGaborImposed(float *floatout, unsigned char *charout, char16_t *i
 
     cufftComplex *dev_holo;
     CHECK(cudaMalloc((void**)&dev_holo,sizeof(cufftComplex)*datLen*datLen));
-    CuFillArrayComp<<<gridDatLen,block>>>(dev_holo,0.5,datLen);
+    CuFillArrayComp<<<gridDatLen,block>>>(dev_holo,1.0,datLen);
+    // CuFillArrayComp<<<gridDatLen,block>>>(dev_holo,0.5,datLen);
     CuSetArrayCenterHalf<<<gridImgLen,block>>>(dev_holo,dev_img,imgLen);
 
     float *dev_imp;
@@ -972,7 +988,7 @@ void getImgAndPIV(Spinnaker::CameraPtr pCam[2],float *backImg1, float *backImg2,
     cv::namedWindow("Cam1",cv::WINDOW_AUTOSIZE);
     cv::namedWindow("Cam2",cv::WINDOW_AUTOSIZE);
     cv::moveWindow("Cam1",0,0);
-    cv::moveWindow("Cam2",530,0);
+    cv::moveWindow("Cam2",512,0);
     cv::imshow("Cam1",imp1);
     cv::imshow("Cam2",imp2);
     cv::waitKey(10);
