@@ -211,23 +211,15 @@ function main()
     while itr <= 10
         println("Iteration: ",itr)
         errorVec= getErrorVec(vecArray,coefa,imgLen)
-        # display(errorVec)
         println("Error vec mean norm: ",sqrt(mean(errorVec.*errorVec)))
-        # vecxObservable[],vecyObservable[],strObservable[] = errorVecReshape(errorVec,n)
         println()
-        # display(hMat)
         deltaCoefa = simEqSolver(choleskyDecom(hMat),yacobian,errorVec)
-        # display(deltaCoefa)
         coefa += deltaCoefa
         itr += 1
     end
     display(coefa)
     println("")
     writedlm("./coefa.dat",coefa)
-    
-    # img3 = getNewImage(img2, coefa)
-
-    # Images.save("./output.png",img3)
 end
 
 main()
