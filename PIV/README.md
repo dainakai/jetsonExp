@@ -24,7 +24,7 @@ bash cmpPIV.sh
 ```
 で実行ファイルをコンパイルします．実行前に，ベクトル場のプロットファイルである```vecArrayPlot.pdf```を表示しましょう．
 ```
-xgd-open vecArrayPlot.pdf
+xdg-open vecArrayPlot.pdf
 ```
 
 ```
