@@ -898,8 +898,7 @@ void getPRImposed(float *floatout, unsigned char *charout, char16_t *in1, char16
     CuNormFloatArrToChar<<<gridImgLen,block>>>(saveImp,dev_outImp,imgLen,255.0);
 
     CHECK(cudaMemcpy(charout, saveImp, sizeof(unsigned char)*imgLen*imgLen, cudaMemcpyDeviceToHost));
-
-
+    
     cufftDestroy(plan);
     CHECK(cudaFree(dev_in1));
     CHECK(cudaFree(dev_in2));
@@ -1030,11 +1029,6 @@ void getBackRemGaborImposed(float *floatout, unsigned char *charout, char16_t *i
     CuNormFloatArrToChar<<<gridImgLen,block>>>(saveImp,dev_outImp,imgLen,255.0);
 
     CHECK(cudaMemcpy(charout, saveImp, sizeof(unsigned char)*imgLen*imgLen, cudaMemcpyDeviceToHost));
-
-    std::cout << (float)floatout[0] << std::endl;
-    std::cout << (float)floatout[10] << std::endl;
-    std::cout << (float)floatout[100] << std::endl;
-    std::cout << (float)floatout[1000] << std::endl;
 
     cufftDestroy(plan);
     CHECK(cudaFree(dev_in));

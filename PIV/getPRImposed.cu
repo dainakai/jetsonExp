@@ -47,7 +47,7 @@ int main(int argc, char** argv){
     const int srchSize = imgLen/4;
     const int gridNum = (int)(imgLen/gridSize);
 
-    const int prLoop = 20;
+    const int prLoop = 10;
     const int backgroundLoops = 30;
     const int ImposedLoop = 100;
 
@@ -57,7 +57,7 @@ int main(int argc, char** argv){
     const float waveLen = 0.532;
     const float dx = 3.45/0.5;
 
-    const int blockSize = 16; 
+    const int blockSize = 16;
 
     // Camera Init
     Spinnaker::SystemPtr system = Spinnaker::System::GetInstance();
