@@ -561,9 +561,14 @@ void getImgAndPIV(Spinnaker::CameraPtr pCam[2],const int imgLen, const int gridS
 }
 
 void getNewImage(char16_t *out, char16_t *img, float a[12], int imgLen){
+    long int *tmpImg;
+    tmpImg = (long int *)malloc(sizeof(long int)*imgLen*imgLen);
+    for (int i = 0; i < imgLen*imgLen; i++){
+        tmpImg[i] = (long int)img[i];
+    }
     long int bkg = 0;
     for (int j = 0; j < imgLen*imgLen; j++){
-        bkg += (long int)img[j];
+        bkg += (long int)tmpImg[j];
     }
     bkg = (long int)(round((float)bkg/(float)(imgLen*imgLen)));
 
@@ -573,18 +578,25 @@ void getNewImage(char16_t *out, char16_t *img, float a[12], int imgLen){
             int tmpX = (int)(round(a[0]+a[1]*j+a[2]*i+a[3]*j*j+a[4]*i*j+a[5]*i*i));
             int tmpY = (int)(round(a[6]+a[7]*j+a[8]*i+a[9]*j*j+a[10]*i*j+a[11]*i*i));
             if (tmpX>=0 && tmpX<imgLen && tmpY>=0 && tmpY <imgLen){
-                out[i*imgLen+j] = img[tmpY*imgLen+tmpX];
+                out[i*imgLen+j] = (char16_t)tmpImg[tmpY*imgLen+tmpX];
             }else{
                 out[i*imgLen+j] = (char16_t)bkg;
             }
         }
     }
+    free(tmpImg);
 }
 
 void getNewFloatImage(float *out, float *img, float a[12], int imgLen){
+    float *tmpImg;
+    tmpImg = (float *)malloc(sizeof(float)*imgLen*imgLen);
+    for (int i = 0; i < imgLen*imgLen; i++){
+        tmpImg[i] = img[i];
+    }
+    
     float bkg = 0;
     for (int j = 0; j < imgLen*imgLen; j++){
-        bkg += (float)img[j];
+        bkg += (float)tmpImg[j];
     }
     bkg = (float)bkg/((float)(imgLen*imgLen));
 
@@ -594,12 +606,13 @@ void getNewFloatImage(float *out, float *img, float a[12], int imgLen){
             int tmpX = (int)(round(a[0]+a[1]*j+a[2]*i+a[3]*j*j+a[4]*i*j+a[5]*i*i));
             int tmpY = (int)(round(a[6]+a[7]*j+a[8]*i+a[9]*j*j+a[10]*i*j+a[11]*i*i));
             if (tmpX>=0 && tmpX<imgLen && tmpY>=0 && tmpY <imgLen){
-                out[i*imgLen+j] = img[tmpY*imgLen+tmpX];
+                out[i*imgLen+j] = tmpImg[tmpY*imgLen+tmpX];
             }else{
                 out[i*imgLen+j] = (float)bkg;
             }
         }
     }
+    free(tmpImg);
 }
 
 void getImgAndBundleAdjCheck(Spinnaker::CameraPtr pCam[2],const int imgLen, const int gridSize, const int intrSize, const int srchSize, const float zF, const float dz, const float waveLen, const float dx, const int blockSize){
@@ -758,6 +771,7 @@ void getPRonGPU(cufftComplex *dev_holo, cufftComplex *holo1, cufftComplex *holo2
         CuComplexMul<<<gridDatLen,block>>>(compAmp2,compAmp2,trans,datLen);
         CuFFTshift<<<gridDatLen,block>>>(compAmp2,datLen);
         cufftExecC2C(plan,compAmp2,compAmp2,CUFFT_INVERSE);
+        CuInvFFTDiv<<<gridDatLen,block>>>(compAmp2,(float)(datLen*datLen),datLen);
         CuGetCompAngle<<<gridDatLen,block>>>(phi2,compAmp2, datLen);
 
         // STEP 2
@@ -769,6 +783,7 @@ void getPRonGPU(cufftComplex *dev_holo, cufftComplex *holo1, cufftComplex *holo2
         CuComplexMul<<<gridDatLen,block>>>(compAmp1,compAmp1,transInv,datLen);
         CuFFTshift<<<gridDatLen,block>>>(compAmp1,datLen);
         cufftExecC2C(plan,compAmp1,compAmp1,CUFFT_INVERSE);
+        CuInvFFTDiv<<<gridDatLen,block>>>(compAmp1,(float)(datLen*datLen),datLen);
         CuGetCompAngle<<<gridDatLen,block>>>(phi1,compAmp1,datLen);
 
         // STEP 4
@@ -928,15 +943,20 @@ void getBackGrounds(float *backImg1,float *backImg2, unsigned char *cBackImg1, u
     }
     std::cout << fImg1[0] << std::endl;
 
-    getNewFloatImage(fImg2,fImg2,coefa,imgLen);
+    // getNewFloatImage(fImg2,fImg2,coefa,imgLen);
 
     for (int idx = 0; idx < imgLen*imgLen; idx++){
         fImg1[idx] /= (float)(loopCount)*65535.0;
         fImg2[idx] /= (float)(loopCount)*65535.0;
+    }
+
+    getNewFloatImage(fImg2,fImg2,coefa,imgLen);
+
+    for (int idx = 0; idx < imgLen*imgLen; idx++){
         backImg1[idx] = (float)fImg1[idx];
         backImg2[idx] = (float)fImg2[idx];
         cBackImg1[idx] = (unsigned char)(fImg1[idx]*255.0);
-        cBackImg2[idx] = (unsigned char)(fImg1[idx]*255.0);
+        cBackImg2[idx] = (unsigned char)(fImg2[idx]*255.0);
     }
     std::cout << "functest" << std::endl;
 
